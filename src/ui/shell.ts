@@ -1,4 +1,4 @@
-import { GEN, LIGHT, SAVE } from '../data/tuning';
+import { GEN, SAVE } from '../data/tuning';
 import { Game } from '../game/game';
 import { applySave, encodeSave } from '../save/apply';
 import type { LoadedState } from '../save/apply';
@@ -111,8 +111,8 @@ export class Shell {
         world: game.world,
         seed: meta.seed,
         mode: game.mode.name,
-        timeOfDay: LIGHT.startTimeOfDay,
-        dayCount: 0,
+        timeOfDay: game.timeOfDay,
+        dayCount: game.dayCount,
         spawnX: meta.spawnX,
         spawnY: meta.spawnY,
         createdAt: meta.createdAt,

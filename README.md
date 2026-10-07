@@ -1,8 +1,8 @@
 # MyTerra
 
-MyTerra is a browser based 2D tile sandbox. M6 adds saving: worlds persist to
-IndexedDB with rotating slots, autosave and a Continue entry on the main menu.
-Lighting and liquid simulation come next.
+MyTerra is a browser based 2D tile sandbox. M7 adds lighting: sky light,
+torches and lava, a day/night cycle, and a darkening pass over the scene.
+Liquid simulation and the survival loop come next.
 
 ## Run locally
 
@@ -27,7 +27,7 @@ Continue reloads the most recent world.
 - Fullscreen: `F11`
 - Return to main menu (saves first): `Esc`
 - Developer overlay (FPS, budgets, mode, palette, inventory, aimed tile): `F3`
-- Debug: `F7` empties hunger, `F8` eats raw meat, `F9` spills water at the cursor
+- Debug: `F7` empties hunger, `F8` eats raw meat, `F9` spills water at the cursor, `F10` recomputes lighting
 
 ## Saving
 

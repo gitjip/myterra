@@ -1,4 +1,5 @@
 import { clamp } from '../core/math';
+import { Emitter } from '../core/emitter';
 import { LIQUID, WORLD } from '../data/tuning';
 import { TileId, tileDefinition, tileIdFromByte, wallIdFromByte, WallId } from '../data/tiles';
 import { Y_MAX, Y_MIN, WORLD_HEIGHT, worldXMax, worldXMin, totalWorldWidth } from './constants';
@@ -19,6 +20,11 @@ export function liquidTypeFromByte(value: number): LiquidType {
     default:
       return LiquidType.None;
   }
+}
+
+export interface WorldEvents {
+  tile: { x: number; y: number };
+  liquid: { x: number; y: number };
 }
 
 export interface WorldBounds {
@@ -47,6 +53,8 @@ export class World {
   /** Save diff bitmaps: one bit per cell, set by gameplay edits only. */
   public readonly tileDirty: Uint8Array;
   public readonly liquidDirty: Uint8Array;
+  /** Gameplay edits, consumed by the light system. Generation writes directly. */
+  public readonly emitter = new Emitter<WorldEvents>();
 
   private revisionValue = 0;
 
@@ -119,6 +127,7 @@ export class World {
     }
     markBit(this.tileDirty, index);
     this.markDirtyIndex(index);
+    this.emitter.emit('tile', { x, y });
   }
 
   public getWall(x: number, y: number): WallId {
@@ -162,6 +171,7 @@ export class World {
     this.liquidAmount[index] = safeAmount;
     markBit(this.liquidDirty, index);
     this.markDirtyIndex(index);
+    this.emitter.emit('liquid', { x, y });
   }
 
   public markDirty(x: number, y: number): void {

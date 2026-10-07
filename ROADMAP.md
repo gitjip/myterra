@@ -1241,7 +1241,7 @@ Medium 20 敌人 + 100 弹幕 ...
 | M4 创造沙盒（开发工具） | ✅ 已完成 | `feat(m4): add creative sandbox mode, flight and tile palette` | 2026-10-07 |
 | M5 世界生成 | ✅ 已完成 | `feat(m5): add seed-driven world generation and new-world menu` | 2026-10-07 |
 | M6 存档 | ✅ 已完成 | `feat(m6): persist worlds to IndexedDB with rotating slots` | 2026-10-07 |
-| M7 光照 | ⬜ 未开始 | — | — |
+| M7 光照 | ✅ 已完成 | `feat(m7): add sky/block light, day cycle and light overlay` | 2026-10-07 |
 | M8 液体与沙 | ⬜ 未开始 | — | — |
 | M9 生存循环 | ⬜ 未开始 | — | — |
 | M10 内容扩展 | ⬜ 未开始 | — | — |

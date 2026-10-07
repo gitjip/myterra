@@ -4,12 +4,13 @@ import { sign } from '../core/math';
 import { Profiler } from '../core/perf';
 import { ItemId, itemDefinition } from '../data/items';
 import { TileId } from '../data/tiles';
-import { DEBUG, FRAME, FRAME_BUDGET_MS, PLAYER, TILE } from '../data/tuning';
+import { DEBUG, FRAME, FRAME_BUDGET_MS, LIGHT, PLAYER, TILE } from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
 import { Camera } from '../render/camera';
 import { DebugOverlay } from '../render/debug';
 import { InteractionRenderer } from '../render/interaction';
+import { LightOverlay } from '../render/lightOverlay';
 import { ParticleSystem, particleColor } from '../render/particles';
 import { PickupRenderer } from '../render/pickup';
 import { PlayerRenderer } from '../render/player';
@@ -18,6 +19,8 @@ import { TerrainRenderer } from '../render/terrain';
 import { InteractionSystem } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
 import { Hud } from '../ui/hud';
+import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
+import { LightSystem } from '../world/light';
 import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 import { findSpawn } from '../world/gen/generator';
@@ -49,8 +52,11 @@ export class Game {
   public readonly particles = new ParticleSystem();
   public readonly interaction = new InteractionSystem();
   public readonly mode: Mode;
+  public readonly light: LightSystem;
   public readonly hud: Hud;
   public readonly input: InputManager;
+  public timeOfDay: number = LIGHT.startTimeOfDay;
+  public dayCount: number = 0;
 
   private readonly loop: GameLoop;
   private readonly canvas: HTMLCanvasElement;
@@ -58,6 +64,7 @@ export class Game {
   private readonly playerRenderer = new PlayerRenderer();
   private readonly pickupRenderer = new PickupRenderer();
   private readonly interactionRenderer = new InteractionRenderer();
+  private readonly lightOverlay = new LightOverlay();
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
 
@@ -90,6 +97,22 @@ export class Game {
     this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
     this.hud = new Hud(uiRoot);
+
+    this.timeOfDay = options.saved?.timeOfDay ?? LIGHT.startTimeOfDay;
+    this.dayCount = options.saved?.dayCount ?? 0;
+    this.light = new LightSystem(this.world);
+    this.disposers.push(
+      this.world.emitter.on('tile', ({ x, y }) => {
+        this.light.markChanged(x, y);
+      }),
+    );
+    this.disposers.push(
+      this.world.emitter.on('liquid', ({ x, y }) => {
+        this.light.markChanged(x, y);
+      }),
+    );
+    this.light.dayFactor = dayFactorFor(this.timeOfDay);
+    this.light.fullRelight();
 
     this.inventory.emitter.on('select', (index) => {
       const slot = this.inventory.getSlot(index);
@@ -141,6 +164,11 @@ export class Game {
     const flags = this.mode.flags;
     this.player.canFly = flags.canFly;
 
+    const day = advanceDay(this.timeOfDay, this.dayCount, dt);
+    this.timeOfDay = day.timeOfDay;
+    this.dayCount = day.dayCount;
+    this.light.dayFactor = dayFactorFor(this.timeOfDay);
+
     this.profiler.measure('entities', FRAME_BUDGET_MS.entities, () => {
       this.player.update(
         this.world,
@@ -156,6 +184,10 @@ export class Game {
       this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
       this.pickups.collect(this.player.centreX, this.player.centreY, this.inventory);
       this.particles.update(dt);
+    });
+
+    this.profiler.measure('light', FRAME_BUDGET_MS.light, () => {
+      this.light.update();
     });
 
     this.camera.follow(
@@ -218,8 +250,9 @@ export class Game {
     }
 
     this.camera.setRenderAlpha(info.alpha);
+    const sky = skyColorFor(this.timeOfDay);
     this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
-      return this.terrain.render(this.ctx, this.camera);
+      return this.terrain.render(this.ctx, this.camera, cssColor(sky));
     });
     this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
     this.playerRenderer.render(
@@ -230,6 +263,7 @@ export class Game {
       this.overlay.visible,
     );
     this.particles.render(this.ctx, this.camera);
+    this.lightOverlay.render(this.ctx, this.camera, this.world, this.light.dayFactor);
     const highlight = this.interaction.mining
       ? { x: this.interaction.miningTargetX, y: this.interaction.miningTargetY }
       : this.aim;
@@ -267,6 +301,11 @@ export class Game {
     );
     lines.push(
       `stats hp ${this.player.health.toFixed(1)} food ${this.player.hunger.toFixed(1)} breath ${this.player.breath.toFixed(1)}`,
+    );
+    const light = this.light.stats;
+    lines.push(
+      `day ${this.timeOfDay.toFixed(3)} x${this.dayCount} factor ${this.light.dayFactor.toFixed(3)}  ` +
+        `light dirty ${light.dirty} nodes ${light.nodes} ${light.ms.toFixed(2)} ms`,
     );
     const flags = this.mode.flags;
     lines.push(
@@ -435,6 +474,11 @@ export class Game {
       if (event.code === DEBUG.liquidKey) {
         event.preventDefault();
         this.spillLiquid();
+        return;
+      }
+      if (event.code === DEBUG.relightKey) {
+        event.preventDefault();
+        this.light.fullRelight();
         return;
       }
       const slot = hotbarSlotFromCode(event.code);

@@ -15,6 +15,7 @@ import { WORLD } from '../src/data/tuning';
 import { Camera } from '../src/render/camera';
 import { World } from '../src/world/world';
 import { WorldGenerator } from '../src/world/gen/generator';
+import { LightSystem } from '../src/world/light';
 
 interface Scenario {
   readonly name: string;
@@ -145,7 +146,12 @@ const genSizes: Array<[string, number]> = [
 ];
 for (const [name, width] of genSizes) {
   const started = performance.now();
-  new WorldGenerator(20261007, width).runToCompletion();
-  const ms = performance.now() - started;
-  console.log(`${name.padEnd(8)} ${String(width).padStart(6)}  ${ms.toFixed(0)} ms`);
+  const world = new WorldGenerator(20261007, width).runToCompletion();
+  const genMs = performance.now() - started;
+  const litStarted = performance.now();
+  new LightSystem(world).fullRelight();
+  const litMs = performance.now() - litStarted;
+  console.log(
+    `${name.padEnd(8)} ${String(width).padStart(6)}  gen ${genMs.toFixed(0)} ms  relight ${litMs.toFixed(0)} ms`,
+  );
 }

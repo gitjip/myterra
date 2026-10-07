@@ -390,4 +390,6 @@ export const DEBUG = {
   eatKey: 'F8',
   /** Spills liquid at the aimed tile until the M8 liquid system lands. */
   liquidKey: 'F9',
+  /** Recomputes all lighting from scratch. */
+  relightKey: 'F10',
 } as const;

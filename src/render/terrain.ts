@@ -20,9 +20,13 @@ export class TerrainRenderer {
     this.chunks = new ChunkRenderer(world, this.atlas);
   }
 
-  public render(ctx: CanvasRenderingContext2D, camera: Camera): TerrainRenderStats {
+  public render(
+    ctx: CanvasRenderingContext2D,
+    camera: Camera,
+    skyColor: string,
+  ): TerrainRenderStats {
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#87b8d8';
+    ctx.fillStyle = skyColor;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     const stats = this.chunks.render(ctx, camera);
     const visibleRect = camera.visibleRect();

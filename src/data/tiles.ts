@@ -1,4 +1,4 @@
-/** Foreground tile ids used by the M1 test scene and later systems. */
+/** Foreground tile ids. */
 export enum TileId {
   Air = 0,
   Dirt = 1,
@@ -22,50 +22,52 @@ export enum WallId {
   Stone = 2,
 }
 
+/** Tool classes. `null` means a tile can be worked bare-handed. */
+export type ToolClass = 'pickaxe' | 'axe' | 'hammer' | 'shovel';
+
 export interface TileDefinition {
   readonly solid: boolean;
   readonly passable: boolean;
   readonly hardness: number;
-  readonly drop: TileId | null;
+  /** Preferred tool class; used for the wrong-tool penalty and drop rule. */
+  readonly tool: ToolClass | null;
+  /** When true the tile cannot be mined without a tool at all. */
+  readonly requiresTool: boolean;
+  readonly unbreakable: boolean;
   readonly liquidHostile: boolean;
 }
 
-const solid = (hardness: number, drop: TileId | null = null): TileDefinition => ({
-  solid: true,
-  passable: false,
-  hardness,
-  drop,
-  liquidHostile: false,
-});
+function tile(
+  solid: boolean,
+  passable: boolean,
+  hardness: number,
+  tool: ToolClass | null,
+  requiresTool = false,
+  unbreakable = false,
+): TileDefinition {
+  return { solid, passable, hardness, tool, requiresTool, unbreakable, liquidHostile: false };
+}
 
-const passable = (hardness: number, drop: TileId | null = null): TileDefinition => ({
-  solid: false,
-  passable: true,
-  hardness,
-  drop,
-  liquidHostile: false,
-});
-
-const AIR_DEFINITION = passable(0);
+const AIR = tile(false, true, 0, null);
 
 export const TILE_DEFINITIONS: Readonly<Partial<Record<TileId, TileDefinition>>> = {
-  [TileId.Air]: AIR_DEFINITION,
-  [TileId.Dirt]: solid(0.5, TileId.Dirt),
-  [TileId.Stone]: solid(3, TileId.Stone),
-  [TileId.Grass]: solid(0.6, TileId.Dirt),
-  [TileId.Wood]: solid(2, TileId.Wood),
-  [TileId.Leaf]: passable(0.2, TileId.Leaf),
-  [TileId.Sand]: solid(0.5, TileId.Sand),
-  [TileId.Torch]: passable(0, TileId.Torch),
-  [TileId.DoorTopClosed]: solid(1, null),
-  [TileId.DoorTopOpen]: passable(1, null),
-  [TileId.DoorBottomClosed]: solid(1, null),
-  [TileId.DoorBottomOpen]: passable(1, null),
-  [TileId.Bedrock]: solid(Number.POSITIVE_INFINITY, null),
+  [TileId.Air]: AIR,
+  [TileId.Dirt]: tile(true, false, 0.5, 'shovel'),
+  [TileId.Stone]: tile(true, false, 3, 'pickaxe', true),
+  [TileId.Grass]: tile(true, false, 0.6, 'shovel'),
+  [TileId.Wood]: tile(true, false, 2, 'axe'),
+  [TileId.Leaf]: tile(false, true, 0.2, 'axe'),
+  [TileId.Sand]: tile(true, false, 0.5, 'shovel'),
+  [TileId.Torch]: tile(false, true, 0, null),
+  [TileId.DoorTopClosed]: tile(true, false, 1, null),
+  [TileId.DoorTopOpen]: tile(false, true, 1, null),
+  [TileId.DoorBottomClosed]: tile(true, false, 1, null),
+  [TileId.DoorBottomOpen]: tile(false, true, 1, null),
+  [TileId.Bedrock]: tile(true, false, Number.POSITIVE_INFINITY, null, false, true),
 };
 
-export function tileDefinition(tile: TileId): TileDefinition {
-  return TILE_DEFINITIONS[tile] ?? AIR_DEFINITION;
+export function tileDefinition(tileId: TileId): TileDefinition {
+  return TILE_DEFINITIONS[tileId] ?? AIR;
 }
 
 export function tileIdFromByte(value: number): TileId {
@@ -110,4 +112,14 @@ export function wallIdFromByte(value: number): WallId {
     default:
       return WallId.None;
   }
+}
+
+/** True for any of the four door tiles. */
+export function isDoorTile(tileId: TileId): boolean {
+  return (
+    tileId === TileId.DoorTopClosed ||
+    tileId === TileId.DoorTopOpen ||
+    tileId === TileId.DoorBottomClosed ||
+    tileId === TileId.DoorBottomOpen
+  );
 }

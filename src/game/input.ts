@@ -42,6 +42,7 @@ export class InputManager {
   private leftDown = false;
   private rightDown = false;
   private middleDown = false;
+  private readonly pressed = new Set<'left' | 'right' | 'middle'>();
   private readonly disposers: Array<() => void> = [];
 
   public constructor(canvas: HTMLCanvasElement, storage: KeyValueStore | null = defaultStorage()) {
@@ -80,6 +81,15 @@ export class InputManager {
     saveKeymap(this.keymapValue, this.storage);
   }
 
+  /**
+   * Returns true once per button-down, consuming the queued press. Because the
+   * fixed update can run zero or several times per rendered frame, presses are
+   * queued rather than sampled from a previous-frame diff.
+   */
+  public consumePress(button: 'left' | 'right' | 'middle'): boolean {
+    return this.pressed.delete(button);
+  }
+
   public dispose(): void {
     for (const dispose of this.disposers) dispose();
     this.disposers.length = 0;
@@ -100,6 +110,7 @@ export class InputManager {
     };
     const onBlur = (): void => {
       this.held.clear();
+      this.pressed.clear();
       this.leftDown = false;
       this.rightDown = false;
       this.middleDown = false;
@@ -115,9 +126,16 @@ export class InputManager {
         this.mouseY <= rect.height;
     };
     const onMouseDown = (event: MouseEvent): void => {
-      if (event.button === 0) this.leftDown = true;
-      else if (event.button === 1) this.middleDown = true;
-      else if (event.button === 2) this.rightDown = true;
+      if (event.button === 0) {
+        this.leftDown = true;
+        this.pressed.add('left');
+      } else if (event.button === 1) {
+        this.middleDown = true;
+        this.pressed.add('middle');
+      } else if (event.button === 2) {
+        this.rightDown = true;
+        this.pressed.add('right');
+      }
     };
     const onMouseUp = (event: MouseEvent): void => {
       if (event.button === 0) this.leftDown = false;

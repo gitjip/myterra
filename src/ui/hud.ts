@@ -1,6 +1,8 @@
 import { clamp01 } from '../core/math';
+import { itemDefinition } from '../data/items';
 import { INVENTORY, SURVIVAL } from '../data/tuning';
 import type { Player } from '../entity/player';
+import type { Inventory } from '../systems/inventory';
 
 interface Bar {
   readonly fill: HTMLDivElement;
@@ -11,9 +13,8 @@ const ITEM_NAME_HOLD_SECONDS = 2;
 const ITEM_NAME_FADE_SECONDS = 0.5;
 
 /**
- * DOM survival HUD: three stat bars, a placeholder hotbar and the fading held
- * item name. Styled inline to match the debug overlay and to avoid shipping a
- * stylesheet before M11 owns the real UI.
+ * DOM survival HUD: three stat bars, the hotbar contents and the fading held
+ * item name. Styled inline to match the debug overlay until M11 owns the UI.
  */
 export class Hud {
   private readonly root: HTMLDivElement;
@@ -21,10 +22,12 @@ export class Hud {
   private readonly hunger: Bar;
   private readonly breath: Bar;
   private readonly slots: HTMLDivElement[] = [];
+  private readonly slotLabels: HTMLSpanElement[] = [];
+  private readonly slotCounts: HTMLSpanElement[] = [];
   private readonly itemName: HTMLDivElement;
   private itemNameText = '';
   private itemNameExpiresAt = 0;
-  private selectedSlot = 0;
+  private hotbarSignature = '';
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -75,35 +78,47 @@ export class Hud {
         background: 'rgba(6, 8, 14, 0.6)',
         border: '1px solid #2a2f45',
         borderRadius: '3px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       } satisfies Partial<CSSStyleDeclaration>);
+
+      const label = document.createElement('span');
+      Object.assign(label.style, {
+        fontSize: '9px',
+        color: '#e6e9f2',
+        textAlign: 'center',
+        lineHeight: '1.1',
+      } satisfies Partial<CSSStyleDeclaration>);
+
       const number = document.createElement('span');
       number.textContent = String((i + 1) % 10);
       Object.assign(number.style, {
         position: 'absolute',
-        right: '3px',
-        bottom: '1px',
-        fontSize: '10px',
+        left: '3px',
+        top: '1px',
+        fontSize: '9px',
         color: '#6b7391',
       } satisfies Partial<CSSStyleDeclaration>);
-      slot.append(number);
+
+      const count = document.createElement('span');
+      Object.assign(count.style, {
+        position: 'absolute',
+        right: '3px',
+        bottom: '1px',
+        fontSize: '9px',
+        color: '#f0d58c',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      slot.append(label, number, count);
       hotbar.append(slot);
       this.slots.push(slot);
+      this.slotLabels.push(label);
+      this.slotCounts.push(count);
     }
 
     this.root.append(bars, this.itemName, hotbar);
     parent.append(this.root);
-    this.setSelectedSlot(0);
-  }
-
-  public setSelectedSlot(index: number): void {
-    this.selectedSlot = ((index % INVENTORY.hotbar) + INVENTORY.hotbar) % INVENTORY.hotbar;
-    this.slots.forEach((slot, i) => {
-      slot.style.borderColor = i === this.selectedSlot ? '#d7dceb' : '#2a2f45';
-    });
-  }
-
-  public get selected(): number {
-    return this.selectedSlot;
   }
 
   /** Shows the held item name, then fades it out. */
@@ -113,10 +128,16 @@ export class Hud {
     this.itemNameExpiresAt = performance.now() + ITEM_NAME_HOLD_SECONDS * 1000;
   }
 
-  public update(player: Player): void {
+  public update(player: Player, inventory: Inventory): void {
     setBarValue(this.health, player.health);
     setBarValue(this.hunger, player.hunger);
     setBarValue(this.breath, player.breath);
+
+    const signature = this.hotbarSignatureFor(inventory);
+    if (signature !== this.hotbarSignature) {
+      this.hotbarSignature = signature;
+      this.paintHotbar(inventory);
+    }
 
     if (this.itemNameText.length > 0) {
       const remainingMs = this.itemNameExpiresAt - performance.now();
@@ -127,6 +148,33 @@ export class Hud {
 
   public dispose(): void {
     this.root.remove();
+  }
+
+  private hotbarSignatureFor(inventory: Inventory): string {
+    const parts: string[] = [String(inventory.selected)];
+    for (let i = 0; i < INVENTORY.hotbar; i++) {
+      const slot = inventory.getSlot(i);
+      parts.push(slot ? `${slot.item}:${slot.count}` : '-');
+    }
+    return parts.join('|');
+  }
+
+  private paintHotbar(inventory: Inventory): void {
+    for (let i = 0; i < INVENTORY.hotbar; i++) {
+      const slot = this.slots[i];
+      const label = this.slotLabels[i];
+      const count = this.slotCounts[i];
+      if (!slot || !label || !count) continue;
+      const stack = inventory.getSlot(i);
+      slot.style.borderColor = i === inventory.selected ? '#d7dceb' : '#2a2f45';
+      if (stack) {
+        label.textContent = shortLabel(itemDefinition(stack.item).name);
+        count.textContent = stack.count > 1 ? String(stack.count) : '';
+      } else {
+        label.textContent = '';
+        count.textContent = '';
+      }
+    }
   }
 
   private createBar(parent: HTMLElement, label: string, color: string, max: number): Bar {
@@ -167,6 +215,16 @@ export class Hud {
     parent.append(row);
     return { fill, max };
   }
+}
+
+function shortLabel(name: string): string {
+  const words = name.split(' ');
+  if (words.length > 1)
+    return words
+      .map((word) => word.charAt(0))
+      .join('')
+      .slice(0, 3);
+  return name.slice(0, 3);
 }
 
 function setBarValue(bar: Bar, value: number): void {

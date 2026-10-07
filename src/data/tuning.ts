@@ -209,6 +209,32 @@ export const INTERACTION = {
   reach: 5,
   /** Time multiplier when the held tool is the wrong class. */
   wrongToolMultiplier: 4,
+  /** Seconds between repeated placements while the place button is held. */
+  placeRepeatSeconds: 0.15,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Mining
+// ---------------------------------------------------------------------------
+
+export const MINING = {
+  /** Seconds of work per unit of tile hardness with the correct tool. */
+  secondsPerHardness: 0.6,
+  /** Floor so zero-hardness tiles still take a frame or two. */
+  minSeconds: 0.05,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Particles
+// ---------------------------------------------------------------------------
+
+export const PARTICLE = {
+  maxCount: 256,
+  perBreak: 9,
+  lifetimeSeconds: 0.5,
+  speed: 6,
+  gravity: 24,
+  size: 2,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -238,8 +264,14 @@ export const ENTITY = {
   /** Beyond this Chebyshev radius entities are destroyed. */
   despawnRadius: 192,
   maxEnemies: 20,
-  pickupRadius: 1.2,
+  /** Radius around the player that sweeps up dropped items, tiles. */
+  pickupRadius: 2,
   pickupLifetimeSeconds: 300,
+  pickupGravity: 24,
+  pickupMaxFallSpeed: 20,
+  pickupHalfSize: 0.25,
+  /** Horizontal drag applied to a dropped item per step, tiles/s^2. */
+  pickupFriction: 18,
 } as const;
 
 // ---------------------------------------------------------------------------

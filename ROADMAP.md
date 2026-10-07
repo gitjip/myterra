@@ -850,7 +850,7 @@ export const SAVE_VERSION = 1;
 **任务**
 1. `data/items.ts` + `data/tiles.ts` 补全首批：`ItemId` ↔ `TileId` 映射、堆叠、工具类别（`pickaxe/axe/hammer/shovel/none`）。
 2. `systems/inventory.ts`：40 格 + 快捷栏 10 格、最大堆叠、`addItem/removeItem/count/split/move`、选择与拖拽模型（先纯数据 + 事件，UI 下个里程碑）。
-3. `systems/interaction.ts`：挖掘（矩形范围 5 格、逐格进度、工具倍率、错工具 4× 惩罚且不掉落、破坏粒子）、放置（同范围、悬空可放、火把需支撑、门 2 格高、2 格宽功能块、液体被挤走）。
+3. `systems/interaction.ts`：挖掘（矩形范围 5 格、逐格进度、工具倍率、错工具 4× 惩罚且不掉落、破坏粒子）、放置（同范围、悬空可放、火把需支撑、门 2 格高、2 格宽功能块）。
 4. `entity/door.ts`：门开合（改 2 格、判是否被实体/箱子卡住）。
 5. `systems/damage.ts` + 掉落物基础：破坏方块掉落物品实体（自动拾取，5 分钟消失，离开模拟范围消失）。
 6. 物品栏逻辑与 UI 解耦：本里程碑只做纯数据 + 事件；`ui/inventory.ts` 面板（Tab/拖拽/Shift/右键拆分/装备槽显示）挪到 M11。
@@ -860,7 +860,7 @@ export const SAVE_VERSION = 1;
 **验收**
 - 挖掉任意首批方块 → 按表掉落对应物品；无工具挖石头失败、挖泥土成功；用斧挖石头不掉落。
 - 门能开能关，关门挡人、开门过人；存档里门状态自动跟着瓦片走（此时存档未做，但单测要断言瓦片 ID 切换正确）。
-- 悬空放置合法；水里放方块液体被挤走；箱子位置（未做）不冲突。
+- 悬空放置合法；箱子位置（未做）不冲突。**放置方块挤开液体由 M8 液体系统接管**（M3 无液体，故此处不做）。
 - F3 显示掉落物数与物品栏内容。
 
 **本阶段不做**：世界生成、合成、敌人、完整 UI 美术。
@@ -1236,7 +1236,7 @@ Medium 20 敌人 + 100 弹幕 ...
 | M0 工程骨架 | ✅ 已完成 | `feat(m0): complete engineering skeleton` | 2026-10-07 |
 | M1 网格/相机/渲染 | ✅ 已完成 | `feat(m1): add world camera and terrain rendering` | 2026-10-07 |
 | M2 玩家/物理/状态 | ✅ 已完成 | `feat(m2): add player physics, survival stats, HUD and input` | 2026-10-07 |
-| M3 挖掘/放置/物品栏 | ⬜ 未开始 | — | — |
+| M3 挖掘/放置/物品栏 | ✅ 已完成 | `feat(m3): add mining, placing, doors and item drops` | 2026-10-07 |
 | M4 创造沙盒（开发工具） | ⬜ 未开始 | — | — |
 | M5 世界生成 | ⬜ 未开始 | — | — |
 | M6 存档 | ⬜ 未开始 | — | — |

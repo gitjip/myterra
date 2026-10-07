@@ -1,0 +1,163 @@
+import { Emitter } from '../core/emitter';
+import { itemDefinition } from '../data/items';
+import type { ItemId } from '../data/items';
+import { INVENTORY } from '../data/tuning';
+
+export interface ItemStack {
+  readonly item: ItemId;
+  count: number;
+}
+
+export type InventorySlot = ItemStack | null;
+
+export interface InventoryEvents {
+  /** A slot's contents changed. */
+  change: number;
+  /** The selected hotbar slot changed. */
+  select: number;
+}
+
+/**
+ * Pure item storage: 40 slots with the first 10 acting as the hotbar.
+ *
+ * It owns no rendering and no DOM. All mutations emit `change` so the UI can
+ * follow along without polling.
+ */
+export class Inventory {
+  public readonly emitter = new Emitter<InventoryEvents>();
+  private readonly slots: InventorySlot[];
+  private selectedIndex = 0;
+
+  public constructor(slotCount: number = INVENTORY.slots) {
+    if (slotCount < INVENTORY.hotbar) {
+      throw new RangeError(`Inventory needs at least ${INVENTORY.hotbar} slots`);
+    }
+    this.slots = new Array<InventorySlot>(slotCount).fill(null);
+  }
+
+  public get size(): number {
+    return this.slots.length;
+  }
+
+  public get selected(): number {
+    return this.selectedIndex;
+  }
+
+  public get selectedSlot(): InventorySlot {
+    return this.slots[this.selectedIndex] ?? null;
+  }
+
+  public getSlot(index: number): InventorySlot {
+    return this.slots[index] ?? null;
+  }
+
+  public select(index: number): void {
+    const wrapped = ((index % INVENTORY.hotbar) + INVENTORY.hotbar) % INVENTORY.hotbar;
+    if (wrapped === this.selectedIndex) return;
+    this.selectedIndex = wrapped;
+    this.emitter.emit('select', wrapped);
+  }
+
+  /** Adds items, filling existing stacks first. Returns the leftover that did not fit. */
+  public addItem(item: ItemId, count = 1): number {
+    if (count <= 0) return 0;
+    const max = itemDefinition(item).stackMax;
+    let remaining = count;
+
+    for (let i = 0; i < this.slots.length && remaining > 0; i++) {
+      const slot = this.slots[i];
+      if (!slot || slot.item !== item || slot.count >= max) continue;
+      const room = max - slot.count;
+      const added = Math.min(room, remaining);
+      slot.count += added;
+      remaining -= added;
+      this.emitter.emit('change', i);
+    }
+
+    for (let i = 0; i < this.slots.length && remaining > 0; i++) {
+      if (this.slots[i]) continue;
+      const added = Math.min(max, remaining);
+      this.slots[i] = { item, count: added };
+      remaining -= added;
+      this.emitter.emit('change', i);
+    }
+
+    return remaining;
+  }
+
+  /** Removes up to `count` of an item across all slots. Returns how many were removed. */
+  public removeItem(item: ItemId, count = 1): number {
+    let remaining = count;
+    let removed = 0;
+    for (let i = 0; i < this.slots.length && remaining > 0; i++) {
+      const slot = this.slots[i];
+      if (!slot || slot.item !== item) continue;
+      const take = Math.min(slot.count, remaining);
+      removed += this.removeFromSlot(i, take);
+      remaining -= take;
+    }
+    return removed;
+  }
+
+  public countOf(item: ItemId): number {
+    let total = 0;
+    for (const slot of this.slots) {
+      if (slot && slot.item === item) total += slot.count;
+    }
+    return total;
+  }
+
+  public removeFromSlot(index: number, count = 1): number {
+    const slot = this.slots[index];
+    if (!slot) return 0;
+    const take = Math.min(slot.count, count);
+    slot.count -= take;
+    if (slot.count <= 0) this.slots[index] = null;
+    this.emitter.emit('change', index);
+    return take;
+  }
+
+  /** Splits a stack in half into the first empty slot. Returns false when it cannot. */
+  public split(index: number): boolean {
+    const slot = this.slots[index];
+    if (!slot || slot.count < 2) return false;
+    const target = this.slots.findIndex((candidate) => candidate === null);
+    if (target < 0) return false;
+    const half = Math.floor(slot.count / 2);
+    slot.count -= half;
+    this.slots[target] = { item: slot.item, count: half };
+    this.emitter.emit('change', index);
+    this.emitter.emit('change', target);
+    return true;
+  }
+
+  /** Moves or merges one slot into another, swapping when the items differ. */
+  public move(from: number, to: number): void {
+    if (from === to) return;
+    const source = this.slots[from] ?? null;
+    const target = this.slots[to] ?? null;
+    if (!source) return;
+
+    if (!target) {
+      this.slots[to] = source;
+      this.slots[from] = null;
+    } else if (target.item === source.item) {
+      const max = itemDefinition(source.item).stackMax;
+      const room = max - target.count;
+      const moved = Math.min(room, source.count);
+      target.count += moved;
+      source.count -= moved;
+      if (source.count <= 0) this.slots[from] = null;
+    } else {
+      this.slots[from] = target;
+      this.slots[to] = source;
+    }
+
+    this.emitter.emit('change', from);
+    this.emitter.emit('change', to);
+  }
+
+  public isEmpty(): boolean {
+    return this.slots.every((slot) => slot === null);
+  }
+}

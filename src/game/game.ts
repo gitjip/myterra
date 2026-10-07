@@ -2,23 +2,30 @@ import { GameLoop } from '../core/loop';
 import type { RenderInfo } from '../core/loop';
 import { sign } from '../core/math';
 import { Profiler } from '../core/perf';
+import { ItemId, itemDefinition } from '../data/items';
 import { DEBUG, FRAME, FRAME_BUDGET_MS, PLAYER, TILE } from '../data/tuning';
 import { Player } from '../entity/player';
+import { PickupManager } from '../entity/pickup';
 import { Camera } from '../render/camera';
 import { DebugOverlay } from '../render/debug';
+import { InteractionRenderer } from '../render/interaction';
+import { ParticleSystem, particleColor } from '../render/particles';
+import { PickupRenderer } from '../render/pickup';
 import { PlayerRenderer } from '../render/player';
 import type { TerrainRenderStats } from '../render/terrain';
 import { TerrainRenderer } from '../render/terrain';
+import { InteractionSystem } from '../systems/interaction';
+import { Inventory } from '../systems/inventory';
+import { Hud } from '../ui/hud';
 import { createTestWorld, testSpawnPoint } from '../world/testWorld';
 import type { World } from '../world/world';
-import { Hud } from '../ui/hud';
 import { InputManager } from './input';
 
 /**
  * Composition root for a running game session.
  *
- * M2 adds the player, its physics and survival stats, a DOM HUD and the input
- * layer. Mining, placing and the inventory stay out until M3.
+ * M3 adds mining, placing, doors, dropped items and the inventory data model.
+ * The inventory panel and crafting arrive later.
  */
 export class Game {
   public readonly profiler = new Profiler();
@@ -27,16 +34,23 @@ export class Game {
   public readonly player: Player;
   public readonly camera: Camera;
   public readonly terrain: TerrainRenderer;
+  public readonly inventory = new Inventory();
+  public readonly pickups = new PickupManager();
+  public readonly particles = new ParticleSystem();
+  public readonly interaction = new InteractionSystem();
   public readonly hud: Hud;
   public readonly input: InputManager;
 
   private readonly loop: GameLoop;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly playerRenderer: PlayerRenderer;
+  private readonly playerRenderer = new PlayerRenderer();
+  private readonly pickupRenderer = new PickupRenderer();
+  private readonly interactionRenderer = new InteractionRenderer();
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
 
+  private aim: { x: number; y: number } | null = null;
   private frames = 0;
   private fpsWindowStart = 0;
   private fps = 0;
@@ -55,10 +69,15 @@ export class Game {
     this.camera = new Camera(this.world);
     this.camera.setPosition(this.player.centreX, this.player.centreY);
     this.terrain = new TerrainRenderer(this.world);
-    this.playerRenderer = new PlayerRenderer();
     this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
     this.hud = new Hud(uiRoot);
+    this.seedInventory();
+
+    this.inventory.emitter.on('select', (index) => {
+      const slot = this.inventory.getSlot(index);
+      this.hud.showItemName(slot ? nameOf(slot.item) : 'Empty Hand');
+    });
 
     this.loop = new GameLoop({
       fixedUpdate: (dt) => {
@@ -100,22 +119,62 @@ export class Game {
   // -------------------------------------------------------------------------
 
   private fixedUpdate(dt: number): void {
-    // M3 adds mining/placing; M7 adds light; M8 adds liquid/sand.
     this.camera.beginStep();
+    const input = this.input.state;
+
     this.profiler.measure('entities', FRAME_BUDGET_MS.entities, () => {
-      const input = this.input.state;
       this.player.update(
         this.world,
         { moveX: input.moveX, moveY: input.moveY, jump: input.jump },
         dt,
       );
-      this.camera.follow(
-        this.player.centreX,
-        this.player.centreY,
-        sign(this.player.body.vx),
-        sign(this.player.body.vy),
-      );
     });
+
+    this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
+      this.aim = input.mouse.inside ? this.tileAtMouse(input.mouse.x, input.mouse.y) : null;
+      this.updateInteraction(dt, input.mouse.left, input.mouse.right);
+      this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
+      this.pickups.collect(this.player.centreX, this.player.centreY, this.inventory);
+      this.particles.update(dt);
+    });
+
+    this.camera.follow(
+      this.player.centreX,
+      this.player.centreY,
+      sign(this.player.body.vx),
+      sign(this.player.body.vy),
+    );
+  }
+
+  private updateInteraction(dt: number, mine: boolean, placeHeld: boolean): void {
+    const target = this.aim;
+    const breakEvent = this.interaction.update(this.world, this.player.body, this.inventory, {
+      tileX: target?.x ?? 0,
+      tileY: target?.y ?? 0,
+      hasTarget: target !== null,
+      mine,
+      placePressed: this.input.consumePress('right'),
+      placeHeld,
+      dt,
+    });
+
+    if (breakEvent) {
+      this.particles.spawnBurst(
+        breakEvent.x + 0.5,
+        breakEvent.y + 0.5,
+        particleColor(breakEvent.tile),
+      );
+      if (breakEvent.drop !== null) {
+        this.pickups.spawn(
+          breakEvent.drop,
+          1,
+          breakEvent.x + 0.35,
+          breakEvent.y + 0.2,
+          (Math.random() - 0.5) * 3,
+          -2,
+        );
+      }
+    }
   }
 
   private render(info: RenderInfo): void {
@@ -131,6 +190,7 @@ export class Game {
     this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
       return this.terrain.render(this.ctx, this.camera);
     });
+    this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
     this.playerRenderer.render(
       this.ctx,
       this.camera,
@@ -138,7 +198,17 @@ export class Game {
       info.alpha,
       this.overlay.visible,
     );
-    this.hud.update(this.player);
+    this.particles.render(this.ctx, this.camera);
+    const highlight = this.interaction.mining
+      ? { x: this.interaction.miningTargetX, y: this.interaction.miningTargetY }
+      : this.aim;
+    this.interactionRenderer.render(
+      this.ctx,
+      this.camera,
+      highlight,
+      this.interaction.miningProgress,
+    );
+    this.hud.update(this.player, this.inventory);
 
     this.overlay.render(this.profiler, {
       fps: this.fps,
@@ -167,31 +237,64 @@ export class Game {
     lines.push(
       `stats hp ${this.player.health.toFixed(1)} food ${this.player.hunger.toFixed(1)} breath ${this.player.breath.toFixed(1)}`,
     );
-    lines.push(`hotbar slot ${this.hud.selected + 1}`);
-    const input = this.input.state;
-    if (input.mouse.inside) {
-      const scale = TILE.px * this.camera.zoom;
-      const tileX = Math.floor(this.camera.left + input.mouse.x / scale);
-      const tileY = Math.floor(this.camera.top + input.mouse.y / scale);
+    lines.push(
+      `held ${this.heldSummary()}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
+    );
+    if (this.aim) {
       lines.push(
-        `cursor ${tileX},${tileY}  L${input.mouse.left ? 1 : 0} R${input.mouse.right ? 1 : 0} M${input.mouse.middle ? 1 : 0}`,
+        `aim ${this.aim.x},${this.aim.y} tile ${this.world.getTile(this.aim.x, this.aim.y)}` +
+          (this.interaction.mining
+            ? ` mining ${(this.interaction.miningProgress * 100).toFixed(0)}%`
+            : ''),
       );
     }
+    lines.push(`inventory ${this.inventorySummary()}`);
     const stats = this.terrainStats;
     if (stats) {
       lines.push(
         `tiles ${stats.drawnTiles}/${stats.visibleTileCount}  chunks ${stats.chunksDrawn}/${stats.chunksVisible}  rebuilt ${stats.chunksRebuilt}`,
       );
-      lines.push(
-        `view ${stats.visibleRect.minX}..${stats.visibleRect.maxX}, ${stats.visibleRect.minY}..${stats.visibleRect.maxY}`,
-      );
     }
     lines.push(`fixed step ${(FRAME.fixedDt * 1000).toFixed(3)} ms`);
+  }
+
+  private heldSummary(): string {
+    const slot = this.inventory.selectedSlot;
+    if (!slot) return 'empty hand';
+    return `${nameOf(slot.item)} x${slot.count}`;
+  }
+
+  private inventorySummary(): string {
+    const parts: string[] = [];
+    for (let i = 0; i < this.inventory.size; i++) {
+      const slot = this.inventory.getSlot(i);
+      if (slot) parts.push(`${i}:${nameOf(slot.item)}x${slot.count}`);
+    }
+    return parts.length > 0 ? parts.join(' ') : 'empty';
   }
 
   // -------------------------------------------------------------------------
   // Plumbing
   // -------------------------------------------------------------------------
+
+  private seedInventory(): void {
+    this.inventory.addItem(ItemId.WoodPickaxe);
+    this.inventory.addItem(ItemId.WoodAxe);
+    this.inventory.addItem(ItemId.WoodShovel);
+    this.inventory.addItem(ItemId.Torch, 20);
+    this.inventory.addItem(ItemId.Door, 5);
+    this.inventory.addItem(ItemId.Dirt, 50);
+    this.inventory.addItem(ItemId.Stone, 50);
+    this.inventory.select(0);
+  }
+
+  private tileAtMouse(mouseX: number, mouseY: number): { x: number; y: number } {
+    const dpr = window.devicePixelRatio || 1;
+    const scale = TILE.px * this.camera.zoom;
+    const worldX = this.camera.left + (mouseX * dpr) / scale;
+    const worldY = this.camera.top + (mouseY * dpr) / scale;
+    return { x: Math.floor(worldX), y: Math.floor(worldY) };
+  }
 
   private resize(): void {
     const dpr = window.devicePixelRatio || 1;
@@ -241,10 +344,7 @@ export class Game {
         return;
       }
       const slot = hotbarSlotFromCode(event.code);
-      if (slot !== null) {
-        this.hud.setSelectedSlot(slot);
-        this.hud.showItemName('Empty Hand');
-      }
+      if (slot !== null) this.inventory.select(slot);
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -264,6 +364,10 @@ export class Game {
       void document.documentElement.requestFullscreen();
     }
   }
+}
+
+function nameOf(item: ItemId): string {
+  return itemDefinition(item).name;
 }
 
 function hotbarSlotFromCode(code: string): number | null {

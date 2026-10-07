@@ -1,5 +1,5 @@
-import { clamp, clamp01, lerp } from '../core/math';
-import { RENDER, TILE, WORLD } from '../data/tuning';
+import { approach, clamp, clamp01, lerp } from '../core/math';
+import { FRAME, RENDER, TILE, WORLD } from '../data/tuning';
 import type { World } from '../world/world';
 
 export interface TileRect {
@@ -27,6 +27,11 @@ export class Camera {
   private prevCenterX = 0;
   private prevCenterY = 0;
   private renderAlpha = 1;
+  /** Eased look-ahead offset in -1..1 per axis; retained when not moving. */
+  private lookX = 0;
+  private lookY = 0;
+  private lookTargetX = 0;
+  private lookTargetY = 0;
 
   public constructor(world: World, zoom: number = RENDER.defaultZoom) {
     this.world = world;
@@ -105,13 +110,26 @@ export class Camera {
     this.setPosition(this.centerX + dx, this.centerY + dy);
   }
 
-  /** Keeps a target inside a pixel dead zone and looks ahead in its direction. */
+  /**
+   * Keeps a target inside a pixel dead zone and looks ahead in its direction.
+   *
+   * The look direction is retained when the incoming direction is zero and is
+   * eased rather than snapped, so coming to rest or crossing zero velocity
+   * never jerks the camera backwards.
+   */
   public follow(targetX: number, targetY: number, directionX = 0, directionY = 0): void {
     const deadZoneX = RENDER.cameraDeadZone / TILE.px;
     const deadZoneY = RENDER.cameraDeadZone / TILE.px;
     const lookAhead = RENDER.cameraLookAhead / TILE.px;
-    const desiredX = targetX + Math.sign(directionX) * lookAhead;
-    const desiredY = targetY + Math.sign(directionY) * lookAhead;
+
+    if (directionX !== 0) this.lookTargetX = directionX > 0 ? 1 : -1;
+    if (directionY !== 0) this.lookTargetY = directionY > 0 ? 1 : -1;
+    const ease = RENDER.cameraLookEase * FRAME.fixedDt;
+    this.lookX = approach(this.lookX, this.lookTargetX, ease);
+    this.lookY = approach(this.lookY, this.lookTargetY, ease);
+
+    const desiredX = targetX + this.lookX * lookAhead;
+    const desiredY = targetY + this.lookY * lookAhead;
 
     if (desiredX > this.centerX + deadZoneX) this.centerX = desiredX - deadZoneX;
     else if (desiredX < this.centerX - deadZoneX) this.centerX = desiredX + deadZoneX;

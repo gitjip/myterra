@@ -58,6 +58,15 @@ describe('Camera', () => {
     expect(result.visibleRect().minY).toBe(WORLD.yReachMin);
   });
 
+  it('does not jerk backwards when the look direction drops to zero', () => {
+    const result = camera();
+    result.setPosition(200, 10);
+    for (let i = 0; i < 60; i++) result.follow(200, 10, 1, 0);
+    const settled = result.position.x;
+    for (let i = 0; i < 30; i++) result.follow(200, 10, 0, 0);
+    expect(result.position.x).toBeGreaterThanOrEqual(settled - 1e-9);
+  });
+
   it('interpolates between fixed steps and is exact at the endpoints', () => {
     const result = camera();
     result.setPosition(100, 10);

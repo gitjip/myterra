@@ -286,6 +286,8 @@ export const RENDER = {
   /** Camera dead zone and look-ahead, in pixels. */
   cameraDeadZone: 8,
   cameraLookAhead: 24,
+  /** How fast the look-ahead offset eases from one direction to the other, units/s. */
+  cameraLookEase: 8,
   /** HUD overlay refresh rate, Hz. */
   overlayHz: 5,
 } as const;

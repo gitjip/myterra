@@ -286,6 +286,20 @@ export const RENDER = {
   cameraLookAhead: 24,
   /** HUD overlay refresh rate, Hz. */
   overlayHz: 5,
+  /** Preview camera movement speed, in tiles per second, until the player lands in M2. */
+  previewPanSpeed: 12,
+} as const;
+
+// ---------------------------------------------------------------------------
+// M1 temporary scene
+// ---------------------------------------------------------------------------
+
+export const TEST_WORLD = {
+  reachWidth: 2048,
+  height: 64,
+  surfaceY: 16,
+  wallXOffset: 256,
+  previewCameraYOffset: 6,
 } as const;
 
 // ---------------------------------------------------------------------------

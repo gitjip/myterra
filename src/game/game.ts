@@ -1,30 +1,38 @@
 import { DebugOverlay } from '../render/debug';
 import { GameLoop } from '../core/loop';
 import { Profiler } from '../core/perf';
-import { FRAME, FRAME_BUDGET_MS, TILE } from '../data/tuning';
+import { FRAME, FRAME_BUDGET_MS, RENDER, TEST_WORLD } from '../data/tuning';
 import type { RenderInfo } from '../core/loop';
+import { Camera } from '../render/camera';
+import type { TerrainRenderStats } from '../render/terrain';
+import { TerrainRenderer } from '../render/terrain';
+import { createTestWorld } from '../world/testWorld';
+import type { World } from '../world/world';
 
 /**
  * Composition root for a running game session.
  *
- * M0 owns only the shell: canvas sizing, the fixed-step loop, the profiler and
- * the F3 overlay. Terrain, world and player get wired in as their milestones
- * land; nothing else here needs to change for that.
+ * M1 adds a resident test world, camera and cached terrain renderer. Player
+ * physics remains deliberately out of this composition root until M2.
  */
 export class Game {
   public readonly profiler = new Profiler();
   public readonly overlay: DebugOverlay;
+  public readonly world: World;
+  public readonly camera: Camera;
+  public readonly terrain: TerrainRenderer;
 
   private readonly loop: GameLoop;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
+  private readonly keys = new Set<string>();
 
   private frames = 0;
   private fpsWindowStart = 0;
   private fps = 0;
-  private sweepPhase = 0;
+  private terrainStats: TerrainRenderStats | undefined;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -33,6 +41,13 @@ export class Game {
   ) {
     this.canvas = canvas;
     this.ctx = ctx;
+    this.world = createTestWorld();
+    this.camera = new Camera(this.world);
+    this.camera.setPosition(
+      this.world.reachWidth / 2 + TEST_WORLD.wallXOffset,
+      TEST_WORLD.surfaceY - TEST_WORLD.previewCameraYOffset,
+    );
+    this.terrain = new TerrainRenderer(this.world);
     this.overlay = new DebugOverlay(uiRoot);
 
     this.loop = new GameLoop({
@@ -72,9 +87,20 @@ export class Game {
   // Frame
   // -------------------------------------------------------------------------
 
-  private fixedUpdate(_dt: number): void {
+  private fixedUpdate(dt: number): void {
     // M2+ runs player physics; M7 adds liquid/sand; M6 adds light.
-    this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {});
+    this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
+      const horizontal =
+        (this.keys.has('ArrowRight') || this.keys.has('KeyD') ? 1 : 0) -
+        (this.keys.has('ArrowLeft') || this.keys.has('KeyA') ? 1 : 0);
+      const vertical =
+        (this.keys.has('ArrowDown') || this.keys.has('KeyS') ? 1 : 0) -
+        (this.keys.has('ArrowUp') || this.keys.has('KeyW') ? 1 : 0);
+      this.camera.move(
+        horizontal * RENDER.previewPanSpeed * dt,
+        vertical * RENDER.previewPanSpeed * dt,
+      );
+    });
   }
 
   private render(info: RenderInfo): void {
@@ -86,8 +112,8 @@ export class Game {
       this.fpsWindowStart = now;
     }
 
-    this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
-      this.drawTestPattern(info.realDelta);
+    this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
+      return this.terrain.render(this.ctx, this.camera);
     });
 
     this.overlay.render(this.profiler, {
@@ -100,41 +126,27 @@ export class Game {
     });
   }
 
-  /**
-   * M0 stand-in for terrain rendering: proves the loop runs, that grid lines
-   * land on single device pixels, and that elapsed time advances. Replaced by
-   * render/camera + render/chunks in M1.
-   */
-  private drawTestPattern(realDelta: number): void {
-    const { width, height } = this.canvas;
-    const ctx = this.ctx;
-
-    ctx.fillStyle = '#0b0b12';
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.fillStyle = '#1a1a26';
-    for (let x = 0; x < width; x += TILE.px) ctx.fillRect(x, 0, 1, height);
-    for (let y = 0; y < height; y += TILE.px) ctx.fillRect(0, y, width, 1);
-
-    this.sweepPhase += realDelta;
-    if (this.sweepPhase > 2) this.sweepPhase -= 2;
-    const x = (this.sweepPhase / 2) * (width + 64) - 64;
-    ctx.fillStyle = '#4ade80';
-    ctx.fillRect(Math.round(x), Math.round(height / 2 - 12), 64, 24);
-
-    ctx.fillStyle = '#e5e7eb';
-    ctx.font = '16px ui-monospace, monospace';
-    ctx.textBaseline = 'top';
-    ctx.fillText('MyTerra M0 - core loop online', 16, 16);
-    ctx.fillText('F3 toggles the debug overlay', 16, 40);
-  }
-
   private collectExtra(lines: string[]): void {
     const dpr = window.devicePixelRatio || 1;
     lines.push(`canvas ${this.canvas.width}x${this.canvas.height} @ dpr ${dpr.toFixed(2)}`);
     lines.push(
       `css ${Math.round(this.canvas.clientWidth)}x${Math.round(this.canvas.clientHeight)}`,
     );
+    lines.push(
+      `world ${this.world.width}x${this.world.height} tiles, revision ${this.world.revision}`,
+    );
+    lines.push(
+      `camera ${this.camera.zoom}x at ${this.camera.position.x.toFixed(1)},${this.camera.position.y.toFixed(1)}`,
+    );
+    const stats = this.terrainStats;
+    if (stats) {
+      lines.push(
+        `tiles ${stats.drawnTiles}/${stats.visibleTileCount}  chunks ${stats.chunksDrawn}/${stats.chunksVisible}  rebuilt ${stats.chunksRebuilt}`,
+      );
+      lines.push(
+        `view ${stats.visibleRect.minX}..${stats.visibleRect.maxX}, ${stats.visibleRect.minY}..${stats.visibleRect.maxY}`,
+      );
+    }
     lines.push(`fixed step ${(FRAME.fixedDt * 1000).toFixed(3)} ms`);
   }
 
@@ -150,6 +162,7 @@ export class Game {
       this.canvas.width = width;
       this.canvas.height = height;
     }
+    this.camera.setViewport(width, height);
   }
 
   private bindInput(): void {
@@ -157,21 +170,56 @@ export class Game {
       if (event.code === 'F3') {
         event.preventDefault();
         this.overlay.toggle();
+        return;
       }
+      if (event.code === 'Equal' || event.code === 'NumpadAdd') {
+        event.preventDefault();
+        this.camera.changeZoom(1);
+        return;
+      }
+      if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
+        event.preventDefault();
+        this.camera.changeZoom(-1);
+        return;
+      }
+      if (event.code === 'F11') {
+        event.preventDefault();
+        this.toggleFullscreen();
+        return;
+      }
+      if (event.code === 'Tab') {
+        event.preventDefault();
+        return;
+      }
+      this.keys.add(event.code);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      this.keys.delete(event.code);
     };
     const onVisibilityChange = (): void => {
       this.loop.setHidden(document.hidden);
     };
 
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
     document.addEventListener('visibilitychange', onVisibilityChange);
     this.disposers.push(() => {
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     });
   }
 
-  private onVisibilityChanged(_hidden: boolean): void {
+  private onVisibilityChanged(hidden: boolean): void {
     // M5+ persists the world here when the tab is hidden.
+    if (hidden) this.keys.clear();
+  }
+
+  private toggleFullscreen(): void {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void document.documentElement.requestFullscreen();
+    }
   }
 }

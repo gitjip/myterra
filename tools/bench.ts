@@ -11,6 +11,9 @@
 import { FixedStepRunner } from '../src/core/loop';
 import { Profiler } from '../src/core/perf';
 import { formatMs } from '../src/core/math';
+import { WORLD } from '../src/data/tuning';
+import { Camera } from '../src/render/camera';
+import { World } from '../src/world/world';
 
 interface Scenario {
   readonly name: string;
@@ -33,6 +36,25 @@ const sink = { value: 0 };
 
 const TICKS_PER_SECOND = 60;
 const BENCH_TICKS = 6000;
+
+function visibleWindowScenario(name: string, reachWidth: number): Scenario {
+  const world = new World({ reachWidth });
+  const camera = new Camera(world);
+  camera.setViewport(1280, 720);
+  camera.setPosition(reachWidth / 2, 0);
+  return {
+    name,
+    ticks: BENCH_TICKS,
+    body: () => {
+      const view = camera.visibleRect();
+      let cells = 0;
+      for (let y = view.minY; y <= view.maxY; y++) {
+        for (let x = view.minX; x <= view.maxX; x++) cells += world.getTile(x, y);
+      }
+      sink.value = (sink.value + cells) % 1_000_003;
+    },
+  };
+}
 
 function runScenario(scenario: Scenario): ScenarioResult {
   const runner = new FixedStepRunner();
@@ -84,6 +106,8 @@ const scenarios: Scenario[] = [
       sink.value = (sink.value + i) % 1_000_003;
     },
   },
+  visibleWindowScenario('small visible window', WORLD.smallReachWidth),
+  visibleWindowScenario('large visible window', WORLD.largeReachWidth),
 ];
 
 const results = scenarios.map(runScenario);

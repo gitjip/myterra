@@ -288,6 +288,32 @@ export const GEN = {
   budgetMs: 8.0,
   biomeTransitionTiles: 48,
   waterLevelOffset: 8,
+  /** Average surface row; smaller y is higher. */
+  surfaceY: 0,
+  /** Peak-to-peak hill amplitude, rows. */
+  hillAmplitude: 10,
+  /** Fine surface detail, rows. */
+  hillDetail: 2.5,
+  /** Rows of subsurface material under the surface tile. */
+  dirtDepth: 5,
+  /** Rows below the surface before a cave may open. */
+  caveMinDepth: 4,
+  /** Rows above bedrock that stay solid. */
+  bedrockMargin: 4,
+  /** Ridged-tunnel carve threshold; higher carves less. */
+  caveThreshold: 0.84,
+  /** Low-frequency hall carve threshold. */
+  hallThreshold: 0.7,
+  /** Ore blob threshold; higher is rarer. */
+  oreThreshold: 0.8,
+  /** Ore depth bands in rows below the surface [min, max]. */
+  coalBand: [8, 140] as const,
+  ironBand: [24, 240] as const,
+  goldBand: [120, 460] as const,
+  /** Pool fill: maximum rows of water at the bottom of a cave run. */
+  waterPoolDepth: 4,
+  /** Rows below the surface where pools become lava instead of water. */
+  lavaDepth: 300,
 } as const;
 
 // ---------------------------------------------------------------------------

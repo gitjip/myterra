@@ -1,4 +1,4 @@
-import { Game } from './game/game';
+import { Shell } from './ui/shell';
 
 function fail(message: string): never {
   document.body.textContent = message;
@@ -14,10 +14,13 @@ if (!uiRoot) fail('MyTerra: #ui root is missing from the document.');
 const ctx = canvas.getContext('2d', { alpha: false });
 if (!ctx) fail('MyTerra: could not acquire a 2d canvas context.');
 
-const game = new Game(canvas, uiRoot, ctx);
-game.start();
+const shell = new Shell(canvas, uiRoot, ctx);
 
 // Surfaces anything that escapes instead of failing silently into a black canvas.
 window.addEventListener('error', (event) => {
   console.error('[myterra]', event.error ?? event.message);
+});
+
+window.addEventListener('beforeunload', () => {
+  shell.dispose();
 });

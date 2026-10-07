@@ -14,6 +14,7 @@ import { formatMs } from '../src/core/math';
 import { WORLD } from '../src/data/tuning';
 import { Camera } from '../src/render/camera';
 import { World } from '../src/world/world';
+import { WorldGenerator } from '../src/world/gen/generator';
 
 interface Scenario {
   readonly name: string;
@@ -134,3 +135,17 @@ console.log(line(header));
 console.log(widths.map((w) => '-'.repeat(w)).join('  '));
 for (const row of rows) console.log(line(row));
 console.log(`\nsink ${sink.value}`);
+
+// World generation is a one-shot task, so it is measured on its own.
+console.log('\nworld generation');
+const genSizes: Array<[string, number]> = [
+  ['small', WORLD.smallReachWidth],
+  ['medium', WORLD.mediumReachWidth],
+  ['large', WORLD.largeReachWidth],
+];
+for (const [name, width] of genSizes) {
+  const started = performance.now();
+  new WorldGenerator(20261007, width).runToCompletion();
+  const ms = performance.now() - started;
+  console.log(`${name.padEnd(8)} ${String(width).padStart(6)}  ${ms.toFixed(0)} ms`);
+}

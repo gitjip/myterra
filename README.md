@@ -1,9 +1,8 @@
 # MyTerra
 
-MyTerra is a browser based 2D tile sandbox. M4 adds the creative sandbox: a
-mode switch, flight, instant mining and placing, and a raw-tile build palette
-for assembling test scenes. The survival loop, world generation, lighting and
-liquid come next.
+MyTerra is a browser based 2D tile sandbox. M5 adds seed-driven world
+generation: biomes, caves, ore veins, trees and static pools, plus a main menu
+and new-world flow. Lighting, liquid simulation and saving come next.
 
 ## Run locally
 
@@ -12,7 +11,8 @@ npm install
 npm run dev
 ```
 
-Open the local Vite URL shown in the terminal.
+Open the local Vite URL shown in the terminal. The main menu creates a world
+(name, size, seed, mode); generation shows progress and can be cancelled.
 
 - Move: `A`/`D` or left/right arrows
 - Jump / swim up / fly up: `Space` / `W`
@@ -24,11 +24,9 @@ Open the local Vite URL shown in the terminal.
 - Creative palette: `1`–`9` or mouse wheel
 - Zoom: `+` / `-`
 - Fullscreen: `F11`
-- Developer overlay (FPS, budgets, mode, palette, inventory): `F3`
+- Return to main menu: `Esc`
+- Developer overlay (FPS, budgets, world seed, mode, inventory): `F3`
 - Debug: `F7` empties hunger, `F8` eats raw meat, `F9` spills water at the cursor
-
-The test scene starts you with a wood pickaxe, axe, shovel, torches, doors and
-some dirt and stone. It has flat ground, a stone wall and a water pool.
 
 ## Checks
 

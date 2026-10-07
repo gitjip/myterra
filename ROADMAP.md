@@ -1106,7 +1106,8 @@ export const SAVE_VERSION = 1;
 | 兔子 | M9 |
 | 箱子 | M9 |
 | 篝火 ❌ 不做 | — |
-| 铁矿、铁锭、铁镐/铁剑 | M9–M10 |
+| 铁矿石 / 煤矿石 / 金矿石（世界生成） | M5 |
+| 铁锭、铁镐/铁剑、煤矿燃料 | M9–M10 |
 | 镐/斧/锤/铲（木/石/铁） | M3 单木镐，M9 三级 |
 | 木剑、石剑 | M9 |
 | 群系：森林 | M5 |
@@ -1119,7 +1120,7 @@ export const SAVE_VERSION = 1;
 | 骷髅（骨弹） | M10 |
 | 蜘蛛（蛛丝） | M10 |
 | 鸟、鱼 | M10 |
-| 煤矿、金矿、金锭 | M10 |
+| 金锭 | M10 |
 | 护甲 3 套（无耐久） | M10 |
 | 藤蔓、仙人掌、松树 | M10 |
 | 铁砧 | M10 |
@@ -1238,7 +1239,7 @@ Medium 20 敌人 + 100 弹幕 ...
 | M2 玩家/物理/状态 | ✅ 已完成 | `feat(m2): add player physics, survival stats, HUD and input` | 2026-10-07 |
 | M3 挖掘/放置/物品栏 | ✅ 已完成 | `feat(m3): add mining, placing, doors and item drops` | 2026-10-07 |
 | M4 创造沙盒（开发工具） | ✅ 已完成 | `feat(m4): add creative sandbox mode, flight and tile palette` | 2026-10-07 |
-| M5 世界生成 | ⬜ 未开始 | — | — |
+| M5 世界生成 | ✅ 已完成 | `feat(m5): add seed-driven world generation and new-world menu` | 2026-10-07 |
 | M6 存档 | ⬜ 未开始 | — | — |
 | M7 光照 | ⬜ 未开始 | — | — |
 | M8 液体与沙 | ⬜ 未开始 | — | — |

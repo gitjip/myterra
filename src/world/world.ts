@@ -148,6 +148,11 @@ export class World {
     this.markDirtyIndex(this.idx(x, y));
   }
 
+  /** Bumps the render revision after a bulk, out-of-band write (generation). */
+  public bumpRevision(): void {
+    this.revisionValue++;
+  }
+
   private markDirtyIndex(_index: number): void {
     this.revisionValue++;
   }

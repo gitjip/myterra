@@ -18,17 +18,22 @@ import { TerrainRenderer } from '../render/terrain';
 import { InteractionSystem } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
 import { Hud } from '../ui/hud';
-import { createTestWorld, testSpawnPoint } from '../world/testWorld';
 import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
+import { findSpawn } from '../world/gen/generator';
 import { InputManager } from './input';
 import { CREATIVE_PALETTE, Mode } from './mode';
+import type { ModeName } from './mode';
+
+export interface GameOptions {
+  readonly mode?: ModeName;
+}
 
 /**
  * Composition root for a running game session.
  *
- * M3 adds mining, placing, doors, dropped items and the inventory data model.
- * The inventory panel and crafting arrive later.
+ * It consumes a ready World (produced by the menu's generator) and owns the
+ * player, systems, HUD and input. Saving and returning to the menu live above.
  */
 export class Game {
   public readonly profiler = new Profiler();
@@ -41,7 +46,7 @@ export class Game {
   public readonly pickups = new PickupManager();
   public readonly particles = new ParticleSystem();
   public readonly interaction = new InteractionSystem();
-  public readonly mode = new Mode('survival');
+  public readonly mode: Mode;
   public readonly hud: Hud;
   public readonly input: InputManager;
 
@@ -65,12 +70,16 @@ export class Game {
     canvas: HTMLCanvasElement,
     uiRoot: HTMLElement,
     ctx: CanvasRenderingContext2D,
+    world: World,
+    options: GameOptions = {},
   ) {
     this.canvas = canvas;
     this.ctx = ctx;
-    this.world = createTestWorld();
-    const spawn = testSpawnPoint(this.world.reachWidth);
+    this.world = world;
+    const spawn = findSpawn(world);
     this.player = new Player(spawn.x - PLAYER.width / 2, spawn.y - PLAYER.height);
+    this.mode = new Mode(options.mode ?? 'survival');
+    this.player.canFly = this.mode.flags.canFly;
     this.camera = new Camera(this.world);
     this.camera.setPosition(this.player.centreX, this.player.centreY);
     this.terrain = new TerrainRenderer(this.world);

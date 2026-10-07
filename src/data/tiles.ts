@@ -13,6 +13,9 @@ export enum TileId {
   DoorBottomClosed = 10,
   DoorBottomOpen = 11,
   Bedrock = 12,
+  CoalOre = 13,
+  IronOre = 14,
+  GoldOre = 15,
 }
 
 /** Background wall ids. Walls never participate in collision or lighting. */
@@ -64,6 +67,9 @@ export const TILE_DEFINITIONS: Readonly<Partial<Record<TileId, TileDefinition>>>
   [TileId.DoorBottomClosed]: tile(true, false, 1, null),
   [TileId.DoorBottomOpen]: tile(false, true, 1, null),
   [TileId.Bedrock]: tile(true, false, Number.POSITIVE_INFINITY, null, false, true),
+  [TileId.CoalOre]: tile(true, false, 2.5, 'pickaxe', true),
+  [TileId.IronOre]: tile(true, false, 3.5, 'pickaxe', true),
+  [TileId.GoldOre]: tile(true, false, 4, 'pickaxe', true),
 };
 
 export function tileDefinition(tileId: TileId): TileDefinition {
@@ -98,6 +104,12 @@ export function tileIdFromByte(value: number): TileId {
       return TileId.DoorBottomOpen;
     case 12:
       return TileId.Bedrock;
+    case 13:
+      return TileId.CoalOre;
+    case 14:
+      return TileId.IronOre;
+    case 15:
+      return TileId.GoldOre;
     default:
       return TileId.Air;
   }

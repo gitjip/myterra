@@ -108,6 +108,8 @@ export const LIGHT = {
   lavaLight: 180,
   attenuationAir: 1,
   attenuationLiquid: 3,
+  /** Extra falloff shown on a solid tile lit by a neighbour (never fully black). */
+  attenuationSolid: 1,
   /** Enemies only spawn where combined light is at or below this. */
   spawnLightThreshold: 100,
   maxLight: 255,

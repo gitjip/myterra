@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TileId } from '../src/data/tiles';
 import { LIGHT, WORLD } from '../src/data/tuning';
-import { LightSystem } from '../src/world/light';
+import { LightSystem, displayBrightness } from '../src/world/light';
 import { LiquidType, World } from '../src/world/world';
 
 /** A stone block with a sealed corridor carved out; nothing touches the sky. */
@@ -91,5 +91,18 @@ describe('light', () => {
     relight(light, 14, 7);
     const wet = world.blockLight[world.idx(15, 7)] ?? 0;
     expect(wet).toBeLessThan(dry);
+  });
+
+  it('shows solid tiles lit by their neighbours instead of black', () => {
+    const { world } = sealedWorld();
+    // (10, 0) is the top solid tile, open air above it.
+    expect(displayBrightness(world, 10, 0, 1)).toBeGreaterThan(250);
+    // A solid tile next to a torch is lit too.
+    world.setTile(15, 5, TileId.Torch);
+    const light = new LightSystem(world);
+    light.fullRelight();
+    expect(displayBrightness(world, 15, 4, 0)).toBe(LIGHT.torchLight - 1);
+    // Deep rock with no lit neighbour stays dark.
+    expect(displayBrightness(world, 10, 3, 1)).toBe(0);
   });
 });

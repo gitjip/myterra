@@ -1,4 +1,5 @@
 import { TILE } from '../data/tuning';
+import { displayBrightness } from '../world/light';
 import type { World } from '../world/world';
 import type { Camera } from './camera';
 
@@ -47,12 +48,8 @@ export class LightOverlay {
     const data = this.image.data;
     for (let ty = 0; ty < h; ty++) {
       const y = minY + ty;
-      const rowBase = (y - world.yMin) * world.width + (minX - world.xMin);
       for (let tx = 0; tx < w; tx++) {
-        const idx = rowBase + tx;
-        const sky = (255 - (world.skyDepth[idx] ?? 255)) * dayFactor;
-        const block = world.blockLight[idx] ?? 0;
-        const brightness = sky > block ? sky : block;
+        const brightness = displayBrightness(world, minX + tx, y, dayFactor);
         const value = brightness < 0 ? 0 : brightness > 255 ? 255 : brightness | 0;
         const p = (ty * w + tx) * 4;
         data[p] = value;

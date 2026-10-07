@@ -19,6 +19,37 @@ interface Removal {
 }
 
 /**
+ * Rendered brightness (0..255) for a cell. Open cells use their stored light.
+ * Solid cells do not transmit light but are shown at their brightest lit
+ * neighbour minus `attenuationSolid`, so walls are visible instead of black.
+ */
+export function displayBrightness(world: World, x: number, y: number, dayFactor: number): number {
+  const { width, xMin, xMax, yMin, yMax } = world;
+  const cx = clamp(Math.trunc(x), xMin, xMax);
+  const cy = clamp(Math.trunc(y), yMin, yMax);
+  const base = (cy - yMin) * width + (cx - xMin);
+  const own = brightnessAt(world, base, dayFactor);
+  if (!tileDefinition(tileIdFromByte(world.fg[base] ?? 0)).solid) return own;
+
+  let best = own;
+  if (cx > xMin)
+    best = Math.max(best, brightnessAt(world, base - 1, dayFactor) - LIGHT.attenuationSolid);
+  if (cx < xMax)
+    best = Math.max(best, brightnessAt(world, base + 1, dayFactor) - LIGHT.attenuationSolid);
+  if (cy > yMin)
+    best = Math.max(best, brightnessAt(world, base - width, dayFactor) - LIGHT.attenuationSolid);
+  if (cy < yMax)
+    best = Math.max(best, brightnessAt(world, base + width, dayFactor) - LIGHT.attenuationSolid);
+  return best < 0 ? 0 : best;
+}
+
+function brightnessAt(world: World, idx: number, dayFactor: number): number {
+  const sky = (255 - (world.skyDepth[idx] ?? 255)) * dayFactor;
+  const block = world.blockLight[idx] ?? 0;
+  return sky > block ? sky : block;
+}
+
+/**
  * Two-channel light: `skyDepth` (distance from full sky, 0 = bright) and
  * `blockLight` (final brightness, 0 = dark). Incremental with a two-phase
  * removal/addition BFS so closing a wall leaves no residual glow.

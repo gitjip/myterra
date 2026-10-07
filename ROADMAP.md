@@ -1235,7 +1235,7 @@ Medium 20 敌人 + 100 弹幕 ...
 |---|---|---|---|
 | M0 工程骨架 | ✅ 已完成 | `feat(m0): complete engineering skeleton` | 2026-10-07 |
 | M1 网格/相机/渲染 | ✅ 已完成 | `feat(m1): add world camera and terrain rendering` | 2026-10-07 |
-| M2 玩家/物理/状态 | ⬜ 未开始 | — | — |
+| M2 玩家/物理/状态 | ✅ 已完成 | `feat(m2): add player physics, survival stats, HUD and input` | 2026-10-07 |
 | M3 挖掘/放置/物品栏 | ⬜ 未开始 | — | — |
 | M4 创造沙盒（开发工具） | ⬜ 未开始 | — | — |
 | M5 世界生成 | ⬜ 未开始 | — | — |

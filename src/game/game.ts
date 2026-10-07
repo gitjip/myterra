@@ -1,33 +1,41 @@
-import { DebugOverlay } from '../render/debug';
 import { GameLoop } from '../core/loop';
-import { Profiler } from '../core/perf';
-import { FRAME, FRAME_BUDGET_MS, RENDER, TEST_WORLD } from '../data/tuning';
 import type { RenderInfo } from '../core/loop';
+import { sign } from '../core/math';
+import { Profiler } from '../core/perf';
+import { DEBUG, FRAME, FRAME_BUDGET_MS, PLAYER, TILE } from '../data/tuning';
+import { Player } from '../entity/player';
 import { Camera } from '../render/camera';
+import { DebugOverlay } from '../render/debug';
+import { PlayerRenderer } from '../render/player';
 import type { TerrainRenderStats } from '../render/terrain';
 import { TerrainRenderer } from '../render/terrain';
-import { createTestWorld } from '../world/testWorld';
+import { createTestWorld, testSpawnPoint } from '../world/testWorld';
 import type { World } from '../world/world';
+import { Hud } from '../ui/hud';
+import { InputManager } from './input';
 
 /**
  * Composition root for a running game session.
  *
- * M1 adds a resident test world, camera and cached terrain renderer. Player
- * physics remains deliberately out of this composition root until M2.
+ * M2 adds the player, its physics and survival stats, a DOM HUD and the input
+ * layer. Mining, placing and the inventory stay out until M3.
  */
 export class Game {
   public readonly profiler = new Profiler();
   public readonly overlay: DebugOverlay;
   public readonly world: World;
+  public readonly player: Player;
   public readonly camera: Camera;
   public readonly terrain: TerrainRenderer;
+  public readonly hud: Hud;
+  public readonly input: InputManager;
 
   private readonly loop: GameLoop;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly playerRenderer: PlayerRenderer;
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
-  private readonly keys = new Set<string>();
 
   private frames = 0;
   private fpsWindowStart = 0;
@@ -42,13 +50,15 @@ export class Game {
     this.canvas = canvas;
     this.ctx = ctx;
     this.world = createTestWorld();
+    const spawn = testSpawnPoint(this.world.reachWidth);
+    this.player = new Player(spawn.x - PLAYER.width / 2, spawn.y - PLAYER.height);
     this.camera = new Camera(this.world);
-    this.camera.setPosition(
-      this.world.reachWidth / 2 + TEST_WORLD.wallXOffset,
-      TEST_WORLD.surfaceY - TEST_WORLD.previewCameraYOffset,
-    );
+    this.camera.setPosition(this.player.centreX, this.player.centreY);
     this.terrain = new TerrainRenderer(this.world);
+    this.playerRenderer = new PlayerRenderer();
+    this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
+    this.hud = new Hud(uiRoot);
 
     this.loop = new GameLoop({
       fixedUpdate: (dt) => {
@@ -80,6 +90,8 @@ export class Game {
     this.resizeObserver.disconnect();
     for (const dispose of this.disposers) dispose();
     this.disposers.length = 0;
+    this.input.dispose();
+    this.hud.dispose();
     this.overlay.dispose();
   }
 
@@ -88,17 +100,19 @@ export class Game {
   // -------------------------------------------------------------------------
 
   private fixedUpdate(dt: number): void {
-    // M2+ runs player physics; M8 adds liquid/sand; M7 adds light.
-    this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
-      const horizontal =
-        (this.keys.has('ArrowRight') || this.keys.has('KeyD') ? 1 : 0) -
-        (this.keys.has('ArrowLeft') || this.keys.has('KeyA') ? 1 : 0);
-      const vertical =
-        (this.keys.has('ArrowDown') || this.keys.has('KeyS') ? 1 : 0) -
-        (this.keys.has('ArrowUp') || this.keys.has('KeyW') ? 1 : 0);
-      this.camera.move(
-        horizontal * RENDER.previewPanSpeed * dt,
-        vertical * RENDER.previewPanSpeed * dt,
+    // M3 adds mining/placing; M7 adds light; M8 adds liquid/sand.
+    this.profiler.measure('entities', FRAME_BUDGET_MS.entities, () => {
+      const input = this.input.state;
+      this.player.update(
+        this.world,
+        { moveX: input.moveX, moveY: input.moveY, jump: input.jump },
+        dt,
+      );
+      this.camera.follow(
+        this.player.centreX,
+        this.player.centreY,
+        sign(this.player.body.vx),
+        sign(this.player.body.vy),
       );
     });
   }
@@ -115,6 +129,8 @@ export class Game {
     this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
       return this.terrain.render(this.ctx, this.camera);
     });
+    this.playerRenderer.render(this.ctx, this.camera, this.player, this.overlay.visible);
+    this.hud.update(this.player);
 
     this.overlay.render(this.profiler, {
       fps: this.fps,
@@ -130,14 +146,29 @@ export class Game {
     const dpr = window.devicePixelRatio || 1;
     lines.push(`canvas ${this.canvas.width}x${this.canvas.height} @ dpr ${dpr.toFixed(2)}`);
     lines.push(
-      `css ${Math.round(this.canvas.clientWidth)}x${Math.round(this.canvas.clientHeight)}`,
-    );
-    lines.push(
       `world ${this.world.width}x${this.world.height} tiles, revision ${this.world.revision}`,
     );
     lines.push(
       `camera ${this.camera.zoom}x at ${this.camera.position.x.toFixed(1)},${this.camera.position.y.toFixed(1)}`,
     );
+    const body = this.player.body;
+    lines.push(
+      `player ${body.x.toFixed(2)},${body.y.toFixed(2)} vel ${body.vx.toFixed(2)},${body.vy.toFixed(2)} ` +
+        `${body.onGround ? 'ground' : 'air'}${this.player.inWater ? ' water' : ''}${this.player.dead ? ' DEAD' : ''}`,
+    );
+    lines.push(
+      `stats hp ${this.player.health.toFixed(1)} food ${this.player.hunger.toFixed(1)} breath ${this.player.breath.toFixed(1)}`,
+    );
+    lines.push(`hotbar slot ${this.hud.selected + 1}`);
+    const input = this.input.state;
+    if (input.mouse.inside) {
+      const scale = TILE.px * this.camera.zoom;
+      const tileX = Math.floor(this.camera.left + input.mouse.x / scale);
+      const tileY = Math.floor(this.camera.top + input.mouse.y / scale);
+      lines.push(
+        `cursor ${tileX},${tileY}  L${input.mouse.left ? 1 : 0} R${input.mouse.right ? 1 : 0} M${input.mouse.middle ? 1 : 0}`,
+      );
+    }
     const stats = this.terrainStats;
     if (stats) {
       lines.push(
@@ -191,28 +222,31 @@ export class Game {
         event.preventDefault();
         return;
       }
-      this.keys.add(event.code);
-    };
-    const onKeyUp = (event: KeyboardEvent): void => {
-      this.keys.delete(event.code);
-    };
-    const onVisibilityChange = (): void => {
-      this.loop.setHidden(document.hidden);
+      if (event.code === DEBUG.starveKey) {
+        event.preventDefault();
+        this.player.hunger = 0;
+        return;
+      }
+      if (event.code === DEBUG.eatKey) {
+        event.preventDefault();
+        this.player.eatRaw();
+        return;
+      }
+      const slot = hotbarSlotFromCode(event.code);
+      if (slot !== null) {
+        this.hud.setSelectedSlot(slot);
+        this.hud.showItemName('Empty Hand');
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    document.addEventListener('visibilitychange', onVisibilityChange);
     this.disposers.push(() => {
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
     });
   }
 
-  private onVisibilityChanged(hidden: boolean): void {
+  private onVisibilityChanged(_hidden: boolean): void {
     // M6+ persists the world here when the tab is hidden.
-    if (hidden) this.keys.clear();
   }
 
   private toggleFullscreen(): void {
@@ -222,4 +256,12 @@ export class Game {
       void document.documentElement.requestFullscreen();
     }
   }
+}
+
+function hotbarSlotFromCode(code: string): number | null {
+  if (code.startsWith('Digit')) {
+    const digit = Number(code.slice(5));
+    if (Number.isInteger(digit) && digit >= 0 && digit <= 9) return (digit + 9) % 10;
+  }
+  return null;
 }

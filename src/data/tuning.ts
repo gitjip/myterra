@@ -182,6 +182,8 @@ export const SURVIVAL = {
   breathRegenPerSecond: 40,
   rawMeatHeal: 20,
   cookedMealHeal: 40,
+  rawMeatHunger: 5,
+  cookedMeatHunger: 15,
   eatDuration: 0.8,
 } as const;
 
@@ -286,8 +288,6 @@ export const RENDER = {
   cameraLookAhead: 24,
   /** HUD overlay refresh rate, Hz. */
   overlayHz: 5,
-  /** Preview camera movement speed, in tiles per second, until the player lands in M2. */
-  previewPanSpeed: 12,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -298,8 +298,23 @@ export const TEST_WORLD = {
   reachWidth: 2048,
   height: 64,
   surfaceY: 16,
+  /** Stone wall column offset from the world centre. */
   wallXOffset: 256,
-  previewCameraYOffset: 6,
+  /** Player spawn column offset from the world centre. */
+  spawnXOffset: -32,
+  /** Water pool centre offset from the world centre. */
+  poolXOffset: 64,
+  poolHalfWidth: 6,
+  poolDepth: 4,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Input
+// ---------------------------------------------------------------------------
+
+export const INPUT = {
+  /** localStorage key holding the remappable action bindings. */
+  storageKey: 'myterra.keymap',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -310,4 +325,7 @@ export const DEBUG = {
   defaultShowOverlay: false,
   /** Rolling window length for profiler statistics. */
   profilerWindow: 300,
+  /** Debug action keys (raw KeyboardEvent.code), wired in game.ts. */
+  starveKey: 'F7',
+  eatKey: 'F8',
 } as const;

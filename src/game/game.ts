@@ -1,14 +1,17 @@
 import { GameLoop } from '../core/loop';
 import type { RenderInfo } from '../core/loop';
-import { sign } from '../core/math';
+import { rectsOverlap, sign } from '../core/math';
 import { Profiler } from '../core/perf';
+import { Rng } from '../core/rng';
 import { ItemId, itemDefinition, stationOfTile } from '../data/items';
 import { TileId } from '../data/tiles';
 import { DEBUG, FRAME, FRAME_BUDGET_MS, INTERACTION, LIGHT, PLAYER, TILE } from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
+import type { Enemy } from '../entity/enemy';
 import { Camera } from '../render/camera';
 import { DebugOverlay } from '../render/debug';
+import { DamageNumbers, EnemyRenderer } from '../render/enemy';
 import { InteractionRenderer } from '../render/interaction';
 import { LightOverlay } from '../render/lightOverlay';
 import { LiquidRenderer } from '../render/liquid';
@@ -20,7 +23,9 @@ import { TerrainRenderer } from '../render/terrain';
 import { InteractionSystem, withinReach } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
 import { craft } from '../systems/crafting';
+import { CombatSystem } from '../systems/combat';
 import { Furnace } from '../systems/furnace';
+import { SpawnSystem } from '../systems/spawn';
 import { CraftingPanel } from '../ui/crafting';
 import { FurnacePanel } from '../ui/furnace';
 import { Hud } from '../ui/hud';
@@ -62,6 +67,7 @@ export class Game {
   public readonly light: LightSystem;
   public readonly liquid: LiquidSystem;
   public readonly sand: SandSystem;
+  public readonly enemies: Enemy[] = [];
   public readonly hud: Hud;
   public readonly input: InputManager;
   public timeOfDay: number = LIGHT.startTimeOfDay;
@@ -75,6 +81,11 @@ export class Game {
   private readonly interactionRenderer = new InteractionRenderer();
   private readonly lightOverlay = new LightOverlay();
   private readonly liquidRenderer = new LiquidRenderer();
+  private readonly enemyRenderer = new EnemyRenderer();
+  private readonly damageNumbers = new DamageNumbers();
+  private readonly combat = new CombatSystem();
+  private readonly rng = new Rng((Math.random() * 0x1_0000_0000) >>> 0);
+  private readonly spawnSystem = new SpawnSystem(this.rng);
   private readonly furnaces = new Map<string, Furnace>();
   private craftingPanel: CraftingPanel | undefined;
   private furnacePanel: FurnacePanel | undefined;
@@ -218,15 +229,44 @@ export class Game {
         { moveX: input.moveX, moveY: input.moveY, jump: input.jump },
         dt,
       );
+      this.combat.update(dt);
+      for (const enemy of this.enemies) {
+        enemy.update(this.world, this.player.centreX, this.player.centreY, dt);
+        if (
+          !this.player.dead &&
+          this.mode.flags.enemiesHostile &&
+          !this.mode.flags.invulnerable &&
+          this.player.invulnTimer <= 0 &&
+          rectsOverlap(enemy.body, this.player.body)
+        ) {
+          const dir = Math.sign(this.player.centreX - enemy.centreX) || 1;
+          this.player.hurt(enemy.def.contactDamage, dir * 6, -4);
+        }
+      }
+      for (let i = this.enemies.length - 1; i >= 0; i--) {
+        if (!(this.enemies[i]?.alive ?? false)) this.enemies.splice(i, 1);
+      }
+      this.spawnSystem.update(
+        this.world,
+        this.player.centreX,
+        this.player.centreY,
+        this.light.dayFactor,
+        this.enemies,
+        dt,
+      );
     });
 
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
       if (this.mode.name === 'creative') this.updatePaletteFromWheel();
       this.aim = input.mouse.inside ? this.tileAtMouse(input.mouse.x, input.mouse.y) : null;
-      this.updateInteraction(dt, input.mouse.left, input.mouse.right);
+      const slot = this.inventory.selectedSlot;
+      const weapon = slot ? itemDefinition(slot.item).weaponDamage : 0;
+      if (weapon > 0 && input.mouse.left && this.combat.trySwing()) this.performSwing(weapon);
+      this.updateInteraction(dt, input.mouse.left && weapon <= 0, input.mouse.right);
       this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
       this.pickups.collect(this.player.centreX, this.player.centreY, this.inventory);
       this.particles.update(dt);
+      this.damageNumbers.update(dt);
       for (const furnace of this.furnaces.values()) furnace.update(dt);
     });
 
@@ -320,6 +360,7 @@ export class Game {
     });
     this.liquidRenderer.render(this.ctx, this.camera, this.world, this.elapsed);
     this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
+    this.enemyRenderer.render(this.ctx, this.camera, this.enemies);
     this.playerRenderer.render(
       this.ctx,
       this.camera,
@@ -329,6 +370,7 @@ export class Game {
     );
     this.particles.render(this.ctx, this.camera);
     this.lightOverlay.render(this.ctx, this.camera, this.world, this.light.dayFactor);
+    this.damageNumbers.render(this.ctx, this.camera);
     const highlight = this.interaction.mining
       ? { x: this.interaction.miningTargetX, y: this.interaction.miningTargetY }
       : this.aim;
@@ -393,7 +435,7 @@ export class Game {
       );
     }
     lines.push(
-      `held ${this.heldSummary()}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
+      `held ${this.heldSummary()}  enemies ${this.enemies.length}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
     );
     if (this.aim) {
       const cell = this.world.liquidAt(this.aim.x, this.aim.y);
@@ -540,6 +582,33 @@ export class Game {
       } else if (this.inventory.countOf(ItemId.Wood) > 0) {
         furnace.addFuel(ItemId.Wood, this.inventory);
       }
+    }
+  }
+
+  private performSwing(damage: number): void {
+    const region = this.combat.region(this.player.body, this.player.facing);
+    for (const enemy of this.enemies) {
+      if (!enemy.alive || enemy.hitCooldown > 0) continue;
+      if (!CombatSystem.overlaps(region, enemy.body)) continue;
+      const dir = Math.sign(enemy.centreX - this.player.centreX) || this.player.facing;
+      const killed = enemy.hit(damage, dir);
+      this.damageNumbers.spawn(enemy.centreX, enemy.body.y, damage);
+      if (killed) this.dropEnemyLoot(enemy);
+    }
+  }
+
+  private dropEnemyLoot(enemy: Enemy): void {
+    for (const drop of enemy.def.drops) {
+      if (!this.rng.chance(drop.chance)) continue;
+      const count = this.rng.nextIntRange(drop.min, drop.max + 1);
+      this.pickups.spawn(
+        drop.item,
+        count,
+        enemy.centreX - 0.2,
+        enemy.body.y,
+        (Math.random() - 0.5) * 3,
+        -2,
+      );
     }
   }
 

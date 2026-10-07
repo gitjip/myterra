@@ -268,6 +268,10 @@ export const ENTITY = {
   /** Beyond this Chebyshev radius entities are destroyed. */
   despawnRadius: 192,
   maxEnemies: 20,
+  /** Seconds between enemy spawn attempts. */
+  spawnIntervalSeconds: 3,
+  /** Candidate columns tried per spawn attempt. */
+  spawnAttempts: 8,
   /** Radius around the player that sweeps up dropped items, tiles. */
   pickupRadius: 2,
   pickupLifetimeSeconds: 300,

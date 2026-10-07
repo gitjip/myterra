@@ -1,5 +1,5 @@
 import { approach, clamp, lerp } from '../core/math';
-import { LIQUID, PLAYER, PLAYER_JUMP_VELOCITY, SURVIVAL } from '../data/tuning';
+import { COMBAT, LIQUID, PLAYER, PLAYER_JUMP_VELOCITY, SURVIVAL } from '../data/tuning';
 import type { Body } from '../systems/physics';
 import { bodyInLiquid, headInLiquid, liquidAtBodyCentre, moveBody } from '../systems/physics';
 import { LiquidType } from '../world/world';
@@ -37,6 +37,7 @@ export class Player {
   public inWater = false;
   public inLava = false;
   public headInWater = false;
+  public invulnTimer = 0;
   public canFly: boolean;
 
   private jumpHeld = false;
@@ -70,6 +71,7 @@ export class Player {
   public update(world: World, input: PlayerInput, dt: number): void {
     this.prevX = this.body.x;
     this.prevY = this.body.y;
+    this.invulnTimer = Math.max(0, this.invulnTimer - dt);
     this.inWater = bodyInLiquid(world, this.body);
     this.inLava = liquidAtBodyCentre(world, this.body) === LiquidType.Lava;
     this.applyMovement(this.dead ? NEUTRAL_INPUT : input, dt);
@@ -90,6 +92,20 @@ export class Player {
     if (this.dead) return;
     this.health = Math.min(SURVIVAL.maxHealth, this.health + SURVIVAL.rawMeatHeal);
     this.hunger = Math.min(SURVIVAL.maxHunger, this.hunger + SURVIVAL.rawMeatHunger);
+  }
+
+  /** Enemy/contact damage with knockback. Ignored while invulnerable or dead. */
+  public hurt(damage: number, knockbackX: number, knockbackY: number): boolean {
+    if (this.dead || this.invulnTimer > 0) return false;
+    this.health = clamp(this.health - damage, 0, SURVIVAL.maxHealth);
+    this.body.vx += knockbackX;
+    this.body.vy = Math.min(this.body.vy, knockbackY);
+    this.invulnTimer = COMBAT.hitInvulnerability;
+    if (this.health <= 0) {
+      this.health = 0;
+      this.dead = true;
+    }
+    return true;
   }
 
   private applyMovement(input: PlayerInput, dt: number): void {

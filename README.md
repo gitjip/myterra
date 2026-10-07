@@ -1,8 +1,8 @@
 # MyTerra
 
-MyTerra is a browser based 2D tile sandbox. M9 adds the crafting economy:
-recipes at a workbench, a furnace for smelting and cooking, three tool tiers
-and ore drops. Combat and enemies come next.
+MyTerra is a browser based 2D tile sandbox. M10 adds combat and enemies:
+sword swings, zombies and slimes that chase and bite, and loot drops. The
+death/respawn loop and passive creatures come next.
 
 ## Run locally
 
@@ -19,6 +19,7 @@ Continue reloads the most recent world.
 - Jump / swim up / fly up: `Space` / `W`
 - Swim or fly down: `S`
 - Mine (hold): left mouse
+- Attack with a sword (hold): left mouse
 - Place / open a door / use a station: right mouse
 - Crafting (near a workbench): `E`
 - Select hotbar slot: `1`–`0`
@@ -38,6 +39,13 @@ slots so a crash mid-write cannot corrupt the loadable copy. A save only stores
 the tiles and liquids you changed plus the player and inventory; terrain and
 background walls are regenerated from the seed. Loading re-runs generation on
 the same seed and applies the diff.
+
+## Combat and enemies
+
+Holding a sword and pressing left mouse swings it in a short arc in front of
+you. Zombies walk toward you and jump over walls; slimes hop. Both deal contact
+damage and are knocked back when hit, then drop gel (and the odd piece of raw
+meat). Enemies spawn only in the dark within 128 tiles and vanish past 192.
 
 ## Crafting and smelting
 

@@ -1,8 +1,8 @@
 # MyTerra
 
-MyTerra is a browser based 2D tile sandbox. M8 adds liquids and sand: water and
-lava flow and react, sand falls, and the player swims, drowns and burns. The
-survival loop and content expansion come next.
+MyTerra is a browser based 2D tile sandbox. M9 adds the crafting economy:
+recipes at a workbench, a furnace for smelting and cooking, three tool tiers
+and ore drops. Combat and enemies come next.
 
 ## Run locally
 
@@ -19,7 +19,8 @@ Continue reloads the most recent world.
 - Jump / swim up / fly up: `Space` / `W`
 - Swim or fly down: `S`
 - Mine (hold): left mouse
-- Place / open a door: right mouse
+- Place / open a door / use a station: right mouse
+- Crafting (near a workbench): `E`
 - Select hotbar slot: `1`–`0`
 - Toggle Survival / Creative: `F6`
 - Creative palette: `1`–`9` or mouse wheel
@@ -37,6 +38,14 @@ slots so a crash mid-write cannot corrupt the loadable copy. A save only stores
 the tiles and liquids you changed plus the player and inventory; terrain and
 background walls are regenerated from the seed. Loading re-runs generation on
 the same seed and applies the diff.
+
+## Crafting and smelting
+
+Mine wood and stone, craft a workbench, then a wood pickaxe; mine ore, smelt
+it in a furnace into ingots, and craft stone and iron tools and swords. Recipes
+are shape-independent and filtered by the station in reach. Tools have three
+tiers whose mining speed increases; using the wrong tool class still costs time
+and drops nothing.
 
 ## Liquids and sand
 

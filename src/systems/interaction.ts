@@ -1,6 +1,6 @@
 import { rectsOverlap } from '../core/math';
 import type { Footprint, ItemId } from '../data/items';
-import { dropForTile, itemDefinition, toolClassOf } from '../data/items';
+import { dropForTile, itemDefinition, toolClassOf, toolTierOf } from '../data/items';
 import { isDoorTile, tileDefinition, TileId, WallId } from '../data/tiles';
 import type { ToolClass } from '../data/tiles';
 import { INTERACTION, MINING } from '../data/tuning';
@@ -62,12 +62,13 @@ export function miningProfile(tile: TileId, heldTool: ToolClass | null): MiningP
   return { minable: true, multiplier: wrong ? INTERACTION.wrongToolMultiplier : 1, drops: !wrong };
 }
 
-export function mineSeconds(tile: TileId, heldTool: ToolClass | null): number {
+export function mineSeconds(tile: TileId, heldTool: ToolClass | null, tier = 1): number {
   const profile = miningProfile(tile, heldTool);
   if (!profile.minable) return Number.POSITIVE_INFINITY;
+  const speed = MINING.tierSpeed[tier] ?? 1;
   return Math.max(
     MINING.minSeconds,
-    tileDefinition(tile).hardness * MINING.secondsPerHardness * profile.multiplier,
+    tileDefinition(tile).hardness * MINING.secondsPerHardness * profile.multiplier * speed,
   );
 }
 
@@ -174,7 +175,12 @@ export function applyPlaceSpec(world: World, spec: PlaceSpec, x: number, y: numb
     world.setTile(x, y - 1, TileId.DoorTopOpen);
     return;
   }
-  if (spec.tile !== null) world.setTile(x, y, spec.tile);
+  if (spec.tile === null) return;
+  for (let dx = 0; dx < spec.footprint.w; dx++) {
+    for (let dy = 0; dy < spec.footprint.h; dy++) {
+      world.setTile(x + dx, y + dy, spec.tile);
+    }
+  }
 }
 
 export function applyPlacement(world: World, item: ItemId, x: number, y: number): void {
@@ -194,7 +200,20 @@ export function breakTile(world: World, x: number, y: number, drop: boolean): Br
       world.setTile(state.x, state.bottomY, TileId.Air);
     }
   } else {
-    world.setTile(x, y, TileId.Air);
+    const def = tileDefinition(tile);
+    if (def.footprint.w > 1 || def.footprint.h > 1) {
+      const originX = def.footprint.w > 1 && world.getTile(x - 1, y) === tile ? x - 1 : x;
+      const originY = def.footprint.h > 1 && world.getTile(x, y - 1) === tile ? y - 1 : y;
+      for (let dx = 0; dx < def.footprint.w; dx++) {
+        for (let dy = 0; dy < def.footprint.h; dy++) {
+          if (world.getTile(originX + dx, originY + dy) === tile) {
+            world.setTile(originX + dx, originY + dy, TileId.Air);
+          }
+        }
+      }
+    } else {
+      world.setTile(x, y, TileId.Air);
+    }
   }
 
   return { x, y, tile, drop: dropped };
@@ -229,6 +248,11 @@ export class InteractionSystem {
   public heldTool(inventory: Inventory): ToolClass | null {
     const slot = inventory.selectedSlot;
     return slot ? toolClassOf(slot.item) : null;
+  }
+
+  public heldTier(inventory: Inventory): number {
+    const slot = inventory.selectedSlot;
+    return slot ? toolTierOf(slot.item) : 0;
   }
 
   public update(
@@ -266,8 +290,9 @@ export class InteractionSystem {
     }
 
     const tool = this.heldTool(inventory);
+    const tier = this.heldTier(inventory);
     const profile = miningProfile(tile, tool);
-    const seconds = mineSeconds(tile, tool);
+    const seconds = mineSeconds(tile, tool, tier);
     if (!profile.minable || !Number.isFinite(seconds)) {
       this.resetMining();
       return null;

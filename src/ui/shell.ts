@@ -261,7 +261,7 @@ export class Shell {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.code === 'Escape' && this.game) {
+    if (event.code === 'Escape' && this.game && !this.game.isUiOpen()) {
       event.preventDefault();
       void this.exitToMenu();
     }

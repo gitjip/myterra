@@ -17,6 +17,9 @@ export enum TileId {
   IronOre = 14,
   GoldOre = 15,
   Obsidian = 16,
+  Workbench = 17,
+  Furnace = 18,
+  Chest = 19,
 }
 
 /** Background wall ids. Walls never participate in collision or lighting. */
@@ -39,6 +42,8 @@ export interface TileDefinition {
   readonly requiresTool: boolean;
   readonly unbreakable: boolean;
   readonly liquidHostile: boolean;
+  /** Cells the block occupies; furniture is 2x1. */
+  readonly footprint: { readonly w: number; readonly h: number };
 }
 
 function tile(
@@ -48,8 +53,18 @@ function tile(
   tool: ToolClass | null,
   requiresTool = false,
   unbreakable = false,
+  footprint: { readonly w: number; readonly h: number } = { w: 1, h: 1 },
 ): TileDefinition {
-  return { solid, passable, hardness, tool, requiresTool, unbreakable, liquidHostile: false };
+  return {
+    solid,
+    passable,
+    hardness,
+    tool,
+    requiresTool,
+    unbreakable,
+    liquidHostile: false,
+    footprint,
+  };
 }
 
 const AIR = tile(false, true, 0, null);
@@ -72,6 +87,9 @@ export const TILE_DEFINITIONS: Readonly<Partial<Record<TileId, TileDefinition>>>
   [TileId.IronOre]: tile(true, false, 3.5, 'pickaxe', true),
   [TileId.GoldOre]: tile(true, false, 4, 'pickaxe', true),
   [TileId.Obsidian]: tile(true, false, 5, 'pickaxe', true),
+  [TileId.Workbench]: tile(true, false, 1, 'hammer', false, false, { w: 2, h: 1 }),
+  [TileId.Furnace]: tile(true, false, 2, 'pickaxe', false, false, { w: 2, h: 1 }),
+  [TileId.Chest]: tile(true, false, 1, 'hammer', false, false, { w: 2, h: 1 }),
 };
 
 export function tileDefinition(tileId: TileId): TileDefinition {
@@ -114,6 +132,12 @@ export function tileIdFromByte(value: number): TileId {
       return TileId.GoldOre;
     case 16:
       return TileId.Obsidian;
+    case 17:
+      return TileId.Workbench;
+    case 18:
+      return TileId.Furnace;
+    case 19:
+      return TileId.Chest;
     default:
       return TileId.Air;
   }

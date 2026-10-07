@@ -224,6 +224,8 @@ export const MINING = {
   secondsPerHardness: 0.6,
   /** Floor so zero-hardness tiles still take a frame or two. */
   minSeconds: 0.05,
+  /** Speed multiplier by tool tier: 0 unused, 1 wood, 2 stone, 3 iron. */
+  tierSpeed: [1, 1, 0.7, 0.5] as const,
 } as const;
 
 // ---------------------------------------------------------------------------

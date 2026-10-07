@@ -2,9 +2,9 @@ import { GameLoop } from '../core/loop';
 import type { RenderInfo } from '../core/loop';
 import { sign } from '../core/math';
 import { Profiler } from '../core/perf';
-import { ItemId, itemDefinition } from '../data/items';
+import { ItemId, itemDefinition, stationOfTile } from '../data/items';
 import { TileId } from '../data/tiles';
-import { DEBUG, FRAME, FRAME_BUDGET_MS, LIGHT, PLAYER, TILE } from '../data/tuning';
+import { DEBUG, FRAME, FRAME_BUDGET_MS, INTERACTION, LIGHT, PLAYER, TILE } from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
 import { Camera } from '../render/camera';
@@ -17,8 +17,12 @@ import { PickupRenderer } from '../render/pickup';
 import { PlayerRenderer } from '../render/player';
 import type { TerrainRenderStats } from '../render/terrain';
 import { TerrainRenderer } from '../render/terrain';
-import { InteractionSystem } from '../systems/interaction';
+import { InteractionSystem, withinReach } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
+import { craft } from '../systems/crafting';
+import { Furnace } from '../systems/furnace';
+import { CraftingPanel } from '../ui/crafting';
+import { FurnacePanel } from '../ui/furnace';
 import { Hud } from '../ui/hud';
 import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
 import { LightSystem } from '../world/light';
@@ -71,6 +75,10 @@ export class Game {
   private readonly interactionRenderer = new InteractionRenderer();
   private readonly lightOverlay = new LightOverlay();
   private readonly liquidRenderer = new LiquidRenderer();
+  private readonly furnaces = new Map<string, Furnace>();
+  private craftingPanel: CraftingPanel | undefined;
+  private furnacePanel: FurnacePanel | undefined;
+  private activeFurnace: Furnace | null = null;
   private elapsed = 0;
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
@@ -104,6 +112,17 @@ export class Game {
     this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
     this.hud = new Hud(uiRoot);
+    this.craftingPanel = new CraftingPanel(uiRoot);
+    this.furnacePanel = new FurnacePanel(uiRoot);
+    this.craftingPanel.onCraft = (recipe) => {
+      craft(recipe, this.inventory);
+    };
+    this.furnacePanel.onInsert = (item) => {
+      this.insertFurnace(item);
+    };
+    this.furnacePanel.onCollect = () => {
+      this.activeFurnace?.collectOutput(this.inventory);
+    };
 
     this.timeOfDay = options.saved?.timeOfDay ?? LIGHT.startTimeOfDay;
     this.dayCount = options.saved?.dayCount ?? 0;
@@ -169,6 +188,13 @@ export class Game {
     this.input.dispose();
     this.hud.dispose();
     this.overlay.dispose();
+    this.craftingPanel?.dispose();
+    this.furnacePanel?.dispose();
+  }
+
+  /** True while a crafting/furnace dialog is open, so Escape closes it first. */
+  public isUiOpen(): boolean {
+    return (this.craftingPanel?.open ?? false) || (this.furnacePanel?.open ?? false);
   }
 
   // -------------------------------------------------------------------------
@@ -201,6 +227,7 @@ export class Game {
       this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
       this.pickups.collect(this.player.centreX, this.player.centreY, this.inventory);
       this.particles.update(dt);
+      for (const furnace of this.furnaces.values()) furnace.update(dt);
     });
 
     this.profiler.measure('light', FRAME_BUDGET_MS.light, () => {
@@ -235,12 +262,22 @@ export class Game {
     const target = this.aim;
     const creative = this.mode.name === 'creative';
     const paletteTile = creative ? (CREATIVE_PALETTE[this.paletteIndex] ?? null) : null;
+
+    // Right-clicking a workstation opens its dialog instead of placing.
+    let placePressed = this.input.consumePress('right');
+    if (placePressed && target && withinReach(this.player.body, target.x, target.y)) {
+      const station = stationOfTile(this.world.getTile(target.x, target.y));
+      if (station !== null && this.openStation(station, target.x, target.y)) {
+        placePressed = false;
+      }
+    }
+
     const breakEvent = this.interaction.update(this.world, this.player.body, this.inventory, {
       tileX: target?.x ?? 0,
       tileY: target?.y ?? 0,
       hasTarget: target !== null,
       mine,
-      placePressed: this.input.consumePress('right'),
+      placePressed,
       placeHeld,
       dt,
       instantMine: this.mode.flags.instantMine,
@@ -306,6 +343,10 @@ export class Game {
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
     this.hud.update(this.player, this.inventory);
+    this.craftingPanel?.update(this.inventory, this.hasWorkbench());
+    if (this.furnacePanel?.open && this.activeFurnace) {
+      this.furnacePanel.update(this.activeFurnace, this.inventory);
+    }
 
     this.overlay.render(this.profiler, {
       fps: this.fps,
@@ -399,8 +440,13 @@ export class Game {
     this.inventory.addItem(ItemId.WoodShovel);
     this.inventory.addItem(ItemId.Torch, 20);
     this.inventory.addItem(ItemId.Door, 5);
-    this.inventory.addItem(ItemId.Dirt, 50);
+    this.inventory.addItem(ItemId.Workbench, 1);
+    this.inventory.addItem(ItemId.Furnace, 1);
+    this.inventory.addItem(ItemId.Wood, 40);
     this.inventory.addItem(ItemId.Stone, 50);
+    this.inventory.addItem(ItemId.IronIngot, 10);
+    this.inventory.addItem(ItemId.Coal, 20);
+    this.inventory.addItem(ItemId.RawMeat, 3);
     this.inventory.select(0);
   }
 
@@ -452,6 +498,66 @@ export class Game {
     return { x: Math.floor(worldX), y: Math.floor(worldY) };
   }
 
+  private toggleCrafting(): void {
+    this.furnacePanel?.set(false);
+    this.activeFurnace = null;
+    this.craftingPanel?.toggle();
+  }
+
+  private openStation(station: string, x: number, y: number): boolean {
+    if (station === 'workbench') {
+      this.furnacePanel?.set(false);
+      this.activeFurnace = null;
+      this.craftingPanel?.set(true);
+      return true;
+    }
+    if (station === 'furnace') {
+      const key = this.furnaceKey(x, y);
+      let furnace = this.furnaces.get(key);
+      if (!furnace) {
+        furnace = new Furnace();
+        this.furnaces.set(key, furnace);
+      }
+      this.activeFurnace = furnace;
+      this.craftingPanel?.set(false);
+      this.furnacePanel?.set(true);
+      return true;
+    }
+    return false;
+  }
+
+  private furnaceKey(x: number, y: number): string {
+    const originX = this.world.getTile(x - 1, y) === TileId.Furnace ? x - 1 : x;
+    return `${originX},${y}`;
+  }
+
+  private insertFurnace(item: ItemId): void {
+    const furnace = this.activeFurnace;
+    if (!furnace) return;
+    if (furnace.addInput(item, this.inventory) && furnace.fuelSeconds <= 0) {
+      if (this.inventory.countOf(ItemId.Coal) > 0) {
+        furnace.addFuel(ItemId.Coal, this.inventory);
+      } else if (this.inventory.countOf(ItemId.Wood) > 0) {
+        furnace.addFuel(ItemId.Wood, this.inventory);
+      }
+    }
+  }
+
+  private hasWorkbench(): boolean {
+    const body = this.player.body;
+    const reach = INTERACTION.reach;
+    const minX = Math.floor(body.x) - reach;
+    const maxX = Math.floor(body.x + body.w) + reach;
+    const minY = Math.floor(body.y) - reach;
+    const maxY = Math.floor(body.y + body.h) + reach;
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (this.world.getTile(x, y) === TileId.Workbench) return true;
+      }
+    }
+    return false;
+  }
+
   private resize(): void {
     const dpr = window.devicePixelRatio || 1;
     const width = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
@@ -487,6 +593,20 @@ export class Game {
       }
       if (event.code === 'Tab') {
         event.preventDefault();
+        return;
+      }
+      if (event.code === 'Escape') {
+        if (this.craftingPanel?.open || this.furnacePanel?.open) {
+          event.preventDefault();
+          this.craftingPanel?.set(false);
+          this.furnacePanel?.set(false);
+          this.activeFurnace = null;
+        }
+        return;
+      }
+      if (event.code === 'KeyE') {
+        event.preventDefault();
+        this.toggleCrafting();
         return;
       }
       if (event.code === DEBUG.starveKey) {

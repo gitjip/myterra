@@ -1,8 +1,8 @@
 # MyTerra
 
-MyTerra is a browser based 2D tile sandbox. M10 adds combat and enemies:
-sword swings, zombies and slimes that chase and bite, and loot drops. The
-death/respawn loop and passive creatures come next.
+MyTerra is a browser based 2D tile sandbox. M11 closes the survival loop:
+death and respawn, edible food, and rabbits. Content expansion and the final
+UI come next.
 
 ## Run locally
 
@@ -20,6 +20,7 @@ Continue reloads the most recent world.
 - Swim or fly down: `S`
 - Mine (hold): left mouse
 - Attack with a sword (hold): left mouse
+- Eat the held food: right mouse
 - Place / open a door / use a station: right mouse
 - Crafting (near a workbench): `E`
 - Select hotbar slot: `1`–`0`
@@ -39,6 +40,13 @@ slots so a crash mid-write cannot corrupt the loadable copy. A save only stores
 the tiles and liquids you changed plus the player and inventory; terrain and
 background walls are regenerated from the seed. Loading re-runs generation on
 the same seed and applies the diff.
+
+## Survival
+
+Health, hunger and breath drain and recover on their own. Hold raw or cooked
+meat and right-click to eat it. Dying shows a death screen; Respawn returns you
+to the world spawn with full stats while keeping your inventory. Rabbits wander
+grassy surface in the daytime and flee when you get close; hit one for raw meat.
 
 ## Combat and enemies
 

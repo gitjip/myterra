@@ -99,4 +99,19 @@ describe('player', () => {
     expect(player.body.y).toBeLessThan(startY - 10);
     expect(player.body.onGround).toBe(false);
   });
+
+  it('respawns with full stats at the given point', () => {
+    const { player } = dryPlayer();
+    player.health = 0;
+    player.hunger = 3;
+    player.breath = 7;
+    player.dead = true;
+    player.respawn(12, 4);
+    expect(player.dead).toBe(false);
+    expect(player.health).toBe(SURVIVAL.maxHealth);
+    expect(player.hunger).toBe(SURVIVAL.maxHunger);
+    expect(player.breath).toBe(SURVIVAL.maxBreath);
+    expect(player.body.x).toBe(12);
+    expect(player.body.y).toBe(4);
+  });
 });

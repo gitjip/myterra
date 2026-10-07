@@ -1282,7 +1282,7 @@ Medium 20 敌人 + 100 弹幕 ...
 | M8 液体与沙 | ✅ 已完成 | `feat(m8): add liquid and sand cellular automata` | 2026-10-08 |
 | M9 合成与工具 | ✅ 已完成 | `feat(m9): add crafting, tools and furnace` | 2026-10-08 |
 | M10 战斗与敌人 | ✅ 已完成 | `feat(m10): add melee combat, enemies and spawning` | 2026-10-08 |
-| M11 生存闭环与被动生物 | ⬜ 未开始 | — | — |
+| M11 生存闭环与被动生物 | ✅ 已完成 | `feat(m11): add death/respawn, food and passive rabbits` | 2026-10-08 |
 | M12 内容扩展 | ⬜ 未开始 | — | — |
 | M13 UI/设置/完整创造 | ⬜ 未开始 | — | — |
 | M14 发布 | ⬜ 未开始 | — | — |

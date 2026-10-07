@@ -9,9 +9,12 @@ import { DEBUG, FRAME, FRAME_BUDGET_MS, INTERACTION, LIGHT, PLAYER, TILE } from 
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
 import type { Enemy } from '../entity/enemy';
+import type { Passive } from '../entity/passive';
+import { PassiveManager } from '../entity/passive';
 import { Camera } from '../render/camera';
 import { DebugOverlay } from '../render/debug';
 import { DamageNumbers, EnemyRenderer } from '../render/enemy';
+import { PassiveRenderer } from '../render/passive';
 import { InteractionRenderer } from '../render/interaction';
 import { LightOverlay } from '../render/lightOverlay';
 import { LiquidRenderer } from '../render/liquid';
@@ -27,6 +30,7 @@ import { CombatSystem } from '../systems/combat';
 import { Furnace } from '../systems/furnace';
 import { SpawnSystem } from '../systems/spawn';
 import { CraftingPanel } from '../ui/crafting';
+import { DeathPanel } from '../ui/death';
 import { FurnacePanel } from '../ui/furnace';
 import { Hud } from '../ui/hud';
 import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
@@ -70,6 +74,8 @@ export class Game {
   public readonly enemies: Enemy[] = [];
   public readonly hud: Hud;
   public readonly input: InputManager;
+  /** Set by the shell so the death screen can return to the menu. */
+  public onExitToMenu: () => void = () => {};
   public timeOfDay: number = LIGHT.startTimeOfDay;
   public dayCount: number = 0;
 
@@ -82,13 +88,18 @@ export class Game {
   private readonly lightOverlay = new LightOverlay();
   private readonly liquidRenderer = new LiquidRenderer();
   private readonly enemyRenderer = new EnemyRenderer();
+  private readonly passiveRenderer = new PassiveRenderer();
   private readonly damageNumbers = new DamageNumbers();
   private readonly combat = new CombatSystem();
   private readonly rng = new Rng((Math.random() * 0x1_0000_0000) >>> 0);
   private readonly spawnSystem = new SpawnSystem(this.rng);
+  private readonly passives = new PassiveManager(this.rng);
   private readonly furnaces = new Map<string, Furnace>();
   private craftingPanel: CraftingPanel | undefined;
   private furnacePanel: FurnacePanel | undefined;
+  private deathPanel: DeathPanel | undefined;
+  private spawnX = 0;
+  private spawnY = 0;
   private activeFurnace: Furnace | null = null;
   private elapsed = 0;
   private readonly resizeObserver: ResizeObserver;
@@ -112,6 +123,8 @@ export class Game {
     this.ctx = ctx;
     this.world = world;
     const spawn = findSpawn(world);
+    this.spawnX = options.saved?.spawnX ?? spawn.x;
+    this.spawnY = options.saved?.spawnY ?? spawn.y;
     this.player = new Player(spawn.x - PLAYER.width / 2, spawn.y - PLAYER.height);
     this.mode = new Mode(options.mode ?? 'survival');
     this.player.canFly = this.mode.flags.canFly;
@@ -133,6 +146,13 @@ export class Game {
     };
     this.furnacePanel.onCollect = () => {
       this.activeFurnace?.collectOutput(this.inventory);
+    };
+    this.deathPanel = new DeathPanel(uiRoot);
+    this.deathPanel.onRespawn = () => {
+      this.respawnPlayer();
+    };
+    this.deathPanel.onExit = () => {
+      this.onExitToMenu();
     };
 
     this.timeOfDay = options.saved?.timeOfDay ?? LIGHT.startTimeOfDay;
@@ -201,11 +221,16 @@ export class Game {
     this.overlay.dispose();
     this.craftingPanel?.dispose();
     this.furnacePanel?.dispose();
+    this.deathPanel?.dispose();
   }
 
-  /** True while a crafting/furnace dialog is open, so Escape closes it first. */
+  /** True while a dialog is open, so Escape closes it before leaving the game. */
   public isUiOpen(): boolean {
-    return (this.craftingPanel?.open ?? false) || (this.furnacePanel?.open ?? false);
+    return (
+      (this.craftingPanel?.open ?? false) ||
+      (this.furnacePanel?.open ?? false) ||
+      (this.deathPanel?.open ?? false)
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -254,7 +279,17 @@ export class Game {
         this.enemies,
         dt,
       );
+      this.passives.update(
+        this.world,
+        this.player.centreX,
+        this.player.centreY,
+        this.light.dayFactor,
+        dt,
+      );
     });
+
+    if (this.player.dead && !(this.deathPanel?.open ?? false)) this.deathPanel?.show();
+    else if (!this.player.dead && (this.deathPanel?.open ?? false)) this.deathPanel?.hide();
 
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
       if (this.mode.name === 'creative') this.updatePaletteFromWheel();
@@ -305,6 +340,14 @@ export class Game {
 
     // Right-clicking a workstation opens its dialog instead of placing.
     let placePressed = this.input.consumePress('right');
+    if (placePressed) {
+      const slot = this.inventory.selectedSlot;
+      const food = slot ? itemDefinition(slot.item).food : null;
+      if (food && this.player.applyFood(food)) {
+        this.inventory.removeFromSlot(this.inventory.selected, 1);
+        placePressed = false;
+      }
+    }
     if (placePressed && target && withinReach(this.player.body, target.x, target.y)) {
       const station = stationOfTile(this.world.getTile(target.x, target.y));
       if (station !== null && this.openStation(station, target.x, target.y)) {
@@ -361,6 +404,7 @@ export class Game {
     this.liquidRenderer.render(this.ctx, this.camera, this.world, this.elapsed);
     this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
     this.enemyRenderer.render(this.ctx, this.camera, this.enemies);
+    this.passiveRenderer.render(this.ctx, this.camera, this.passives.rabbits);
     this.playerRenderer.render(
       this.ctx,
       this.camera,
@@ -510,6 +554,15 @@ export class Game {
         saved.inventory.map((slot) => (slot ? { item: slot.item, count: slot.count } : null)),
       );
     }
+    // Death is never persisted: a reloaded dead player respawns with full stats.
+    if (this.player.dead || this.player.health <= 0) {
+      this.player.respawn(this.spawnX - PLAYER.width / 2, this.spawnY - PLAYER.height);
+    }
+  }
+
+  private respawnPlayer(): void {
+    this.player.respawn(this.spawnX - PLAYER.width / 2, this.spawnY - PLAYER.height);
+    this.deathPanel?.hide();
   }
 
   public capturePlayer(): SavePlayer {
@@ -595,6 +648,25 @@ export class Game {
       this.damageNumbers.spawn(enemy.centreX, enemy.body.y, damage);
       if (killed) this.dropEnemyLoot(enemy);
     }
+    for (const passive of this.passives.rabbits) {
+      if (!passive.alive) continue;
+      if (!CombatSystem.overlaps(region, passive.body)) continue;
+      const dir = Math.sign(passive.centreX - this.player.centreX) || this.player.facing;
+      const killed = passive.hit(damage, dir);
+      this.damageNumbers.spawn(passive.centreX, passive.body.y, damage);
+      if (killed) this.dropPassiveLoot(passive);
+    }
+  }
+
+  private dropPassiveLoot(passive: Passive): void {
+    this.pickups.spawn(
+      passive.def.drop,
+      1,
+      passive.centreX - 0.2,
+      passive.body.y,
+      (Math.random() - 0.5) * 3,
+      -2,
+    );
   }
 
   private dropEnemyLoot(enemy: Enemy): void {

@@ -108,6 +108,30 @@ export class Player {
     return true;
   }
 
+  /** Applies food. Returns false when dead so a corpse cannot eat. */
+  public applyFood(food: { heal: number; hunger: number }): boolean {
+    if (this.dead) return false;
+    this.health = Math.min(SURVIVAL.maxHealth, this.health + food.heal);
+    this.hunger = Math.min(SURVIVAL.maxHunger, this.hunger + food.hunger);
+    return true;
+  }
+
+  /** Full reset at a spawn point. Inventory is owned elsewhere and untouched. */
+  public respawn(x: number, y: number): void {
+    this.health = SURVIVAL.maxHealth;
+    this.hunger = SURVIVAL.maxHunger;
+    this.breath = SURVIVAL.maxBreath;
+    this.dead = false;
+    this.invulnTimer = 1;
+    this.body.x = x;
+    this.body.y = y;
+    this.body.vx = 0;
+    this.body.vy = 0;
+    this.body.onGround = false;
+    this.prevX = x;
+    this.prevY = y;
+  }
+
   private applyMovement(input: PlayerInput, dt: number): void {
     if (this.canFly) {
       this.body.vx = approach(

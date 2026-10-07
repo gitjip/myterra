@@ -212,6 +212,9 @@ export class Shell {
       mode: loaded?.mode ?? meta.mode,
       saved: loaded,
     });
+    this.game.onExitToMenu = () => {
+      void this.exitToMenu();
+    };
     this.meta = meta;
     this.game.start();
     this.startAutosave();

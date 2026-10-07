@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="color-scheme" content="dark" />
+    <title>MyTerra</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0b0b12;
+      }
+
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        image-rendering: pixelated;
+        touch-action: none;
+        cursor: crosshair;
+      }
+
+      #ui {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      #ui > * {
+        pointer-events: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="ui"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

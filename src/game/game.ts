@@ -101,6 +101,7 @@ export class Game {
 
   private fixedUpdate(dt: number): void {
     // M3 adds mining/placing; M7 adds light; M8 adds liquid/sand.
+    this.camera.beginStep();
     this.profiler.measure('entities', FRAME_BUDGET_MS.entities, () => {
       const input = this.input.state;
       this.player.update(
@@ -126,10 +127,17 @@ export class Game {
       this.fpsWindowStart = now;
     }
 
+    this.camera.setRenderAlpha(info.alpha);
     this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
       return this.terrain.render(this.ctx, this.camera);
     });
-    this.playerRenderer.render(this.ctx, this.camera, this.player, this.overlay.visible);
+    this.playerRenderer.render(
+      this.ctx,
+      this.camera,
+      this.player,
+      info.alpha,
+      this.overlay.visible,
+    );
     this.hud.update(this.player);
 
     this.overlay.render(this.profiler, {

@@ -57,4 +57,23 @@ describe('Camera', () => {
     expect(result.visibleRect().minX).toBe(0);
     expect(result.visibleRect().minY).toBe(WORLD.yReachMin);
   });
+
+  it('interpolates between fixed steps and is exact at the endpoints', () => {
+    const result = camera();
+    result.setPosition(100, 10);
+    result.beginStep();
+    result.setPosition(110, 20);
+
+    result.setRenderAlpha(0.5);
+    expect(result.position.x).toBeCloseTo(105, 6);
+    expect(result.position.y).toBeCloseTo(15, 6);
+
+    result.setRenderAlpha(1);
+    expect(result.position.x).toBe(110);
+    expect(result.position.y).toBe(20);
+
+    result.setRenderAlpha(0);
+    expect(result.position.x).toBe(100);
+    expect(result.position.y).toBe(10);
+  });
 });

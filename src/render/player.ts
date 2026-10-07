@@ -12,9 +12,11 @@ export class PlayerRenderer {
     ctx: CanvasRenderingContext2D,
     camera: Camera,
     player: Player,
+    alpha: number,
     debug: boolean,
   ): void {
-    const screen = camera.worldToScreen(player.body.x, player.body.y);
+    const position = player.renderPosition(alpha);
+    const screen = camera.worldToScreen(position.x, position.y);
     const scale = TILE.px * camera.zoom;
     const w = Math.max(1, Math.round(player.body.w * scale));
     const h = Math.max(1, Math.round(player.body.h * scale));

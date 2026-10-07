@@ -1,4 +1,4 @@
-import { clamp } from '../core/math';
+import { clamp, clamp01, lerp } from '../core/math';
 import { RENDER, TILE, WORLD } from '../data/tuning';
 import type { World } from '../world/world';
 
@@ -24,6 +24,9 @@ export class Camera {
   private zoomValue: number = RENDER.defaultZoom;
   private centerX = 0;
   private centerY = 0;
+  private prevCenterX = 0;
+  private prevCenterY = 0;
+  private renderAlpha = 1;
 
   public constructor(world: World, zoom: number = RENDER.defaultZoom) {
     this.world = world;
@@ -31,6 +34,34 @@ export class Camera {
     this.centerX = world.reachWidth / 2;
     this.centerY = (WORLD.yReachMin + WORLD.yReachMax) / 2;
     this.clampToWorld();
+    this.prevCenterX = this.centerX;
+    this.prevCenterY = this.centerY;
+  }
+
+  /**
+   * Render interpolation. Call {@link beginStep} once at the start of each
+   * fixed step and {@link setRenderAlpha} once per rendered frame, so the
+   * camera advances smoothly between simulation states instead of stuttering.
+   */
+  public beginStep(): void {
+    this.prevCenterX = this.centerX;
+    this.prevCenterY = this.centerY;
+  }
+
+  public setRenderAlpha(alpha: number): void {
+    this.renderAlpha = clamp01(alpha);
+  }
+
+  private get renderCenterX(): number {
+    if (this.renderAlpha >= 1) return this.centerX;
+    if (this.renderAlpha <= 0) return this.prevCenterX;
+    return lerp(this.prevCenterX, this.centerX, this.renderAlpha);
+  }
+
+  private get renderCenterY(): number {
+    if (this.renderAlpha >= 1) return this.centerY;
+    if (this.renderAlpha <= 0) return this.prevCenterY;
+    return lerp(this.prevCenterY, this.centerY, this.renderAlpha);
   }
 
   public get zoom(): number {
@@ -38,7 +69,7 @@ export class Camera {
   }
 
   public get position(): CameraPosition {
-    return { x: this.centerX, y: this.centerY };
+    return { x: this.renderCenterX, y: this.renderCenterY };
   }
 
   public get viewportWorldWidth(): number {
@@ -116,19 +147,19 @@ export class Camera {
   }
 
   public get left(): number {
-    return this.centerX - this.viewportWorldWidth / 2;
+    return this.renderCenterX - this.viewportWorldWidth / 2;
   }
 
   public get right(): number {
-    return this.centerX + this.viewportWorldWidth / 2;
+    return this.renderCenterX + this.viewportWorldWidth / 2;
   }
 
   public get top(): number {
-    return this.centerY - this.viewportWorldHeight / 2;
+    return this.renderCenterY - this.viewportWorldHeight / 2;
   }
 
   public get bottom(): number {
-    return this.centerY + this.viewportWorldHeight / 2;
+    return this.renderCenterY + this.viewportWorldHeight / 2;
   }
 
   private clampZoom(zoom: number): number {
@@ -144,6 +175,8 @@ export class Camera {
     const maxY = WORLD.yReachMax + 1 - halfHeight;
     this.centerX = this.clampCenter(this.centerX, minX, maxX);
     this.centerY = this.clampCenter(this.centerY, minY, maxY);
+    this.prevCenterX = this.clampCenter(this.prevCenterX, minX, maxX);
+    this.prevCenterY = this.clampCenter(this.prevCenterY, minY, maxY);
   }
 
   private clampCenter(value: number, min: number, max: number): number {

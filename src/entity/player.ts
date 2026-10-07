@@ -1,4 +1,4 @@
-import { approach, clamp } from '../core/math';
+import { approach, clamp, lerp } from '../core/math';
 import { LIQUID, PLAYER, PLAYER_JUMP_VELOCITY, SURVIVAL } from '../data/tuning';
 import type { Body } from '../systems/physics';
 import { bodyInLiquid, headInLiquid, moveBody } from '../systems/physics';
@@ -38,6 +38,8 @@ export class Player {
   public canFly: boolean;
 
   private jumpHeld = false;
+  private prevX: number;
+  private prevY: number;
 
   public constructor(x: number, y: number, options: PlayerOptions = {}) {
     this.body = {
@@ -49,6 +51,8 @@ export class Player {
       h: PLAYER.height,
       onGround: false,
     };
+    this.prevX = x;
+    this.prevY = y;
     this.canFly = options.canFly ?? false;
   }
 
@@ -62,10 +66,20 @@ export class Player {
   }
 
   public update(world: World, input: PlayerInput, dt: number): void {
+    this.prevX = this.body.x;
+    this.prevY = this.body.y;
     this.inWater = bodyInLiquid(world, this.body);
     this.applyMovement(this.dead ? NEUTRAL_INPUT : input, dt);
     moveBody(world, this.body, dt);
     if (!this.dead) this.updateSurvival(world, dt);
+  }
+
+  /** Interpolated top-left corner for rendering, between the last two steps. */
+  public renderPosition(alpha: number): { x: number; y: number } {
+    return {
+      x: lerp(this.prevX, this.body.x, alpha),
+      y: lerp(this.prevY, this.body.y, alpha),
+    };
   }
 
   /** Debug / future item use: raw meat heals and restores a little hunger. */

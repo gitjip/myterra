@@ -362,4 +362,6 @@ export const DEBUG = {
   /** Debug action keys (raw KeyboardEvent.code), wired in game.ts. */
   starveKey: 'F7',
   eatKey: 'F8',
+  /** Spills liquid at the aimed tile until the M8 liquid system lands. */
+  liquidKey: 'F9',
 } as const;

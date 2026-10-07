@@ -1237,7 +1237,7 @@ Medium 20 敌人 + 100 弹幕 ...
 | M1 网格/相机/渲染 | ✅ 已完成 | `feat(m1): add world camera and terrain rendering` | 2026-10-07 |
 | M2 玩家/物理/状态 | ✅ 已完成 | `feat(m2): add player physics, survival stats, HUD and input` | 2026-10-07 |
 | M3 挖掘/放置/物品栏 | ✅ 已完成 | `feat(m3): add mining, placing, doors and item drops` | 2026-10-07 |
-| M4 创造沙盒（开发工具） | ⬜ 未开始 | — | — |
+| M4 创造沙盒（开发工具） | ✅ 已完成 | `feat(m4): add creative sandbox mode, flight and tile palette` | 2026-10-07 |
 | M5 世界生成 | ⬜ 未开始 | — | — |
 | M6 存档 | ⬜ 未开始 | — | — |
 | M7 光照 | ⬜ 未开始 | — | — |

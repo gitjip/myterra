@@ -43,6 +43,7 @@ export class InputManager {
   private rightDown = false;
   private middleDown = false;
   private readonly pressed = new Set<'left' | 'right' | 'middle'>();
+  private wheelAccum = 0;
   private readonly disposers: Array<() => void> = [];
 
   public constructor(canvas: HTMLCanvasElement, storage: KeyValueStore | null = defaultStorage()) {
@@ -88,6 +89,13 @@ export class InputManager {
    */
   public consumePress(button: 'left' | 'right' | 'middle'): boolean {
     return this.pressed.delete(button);
+  }
+
+  /** Accumulated wheel delta since the last call, then reset. */
+  public consumeWheel(): number {
+    const delta = this.wheelAccum;
+    this.wheelAccum = 0;
+    return delta;
   }
 
   public dispose(): void {
@@ -148,6 +156,10 @@ export class InputManager {
     const onContextMenu = (event: MouseEvent): void => {
       event.preventDefault();
     };
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault();
+      this.wheelAccum += event.deltaY;
+    };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -157,6 +169,7 @@ export class InputManager {
     window.addEventListener('mouseup', onMouseUp);
     this.canvas.addEventListener('mouseleave', onMouseLeave);
     this.canvas.addEventListener('contextmenu', onContextMenu);
+    this.canvas.addEventListener('wheel', onWheel, { passive: false });
     this.disposers.push(() => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -166,6 +179,7 @@ export class InputManager {
       window.removeEventListener('mouseup', onMouseUp);
       this.canvas.removeEventListener('mouseleave', onMouseLeave);
       this.canvas.removeEventListener('contextmenu', onContextMenu);
+      this.canvas.removeEventListener('wheel', onWheel);
     });
   }
 }

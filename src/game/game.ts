@@ -3,6 +3,7 @@ import type { RenderInfo } from '../core/loop';
 import { sign } from '../core/math';
 import { Profiler } from '../core/perf';
 import { ItemId, itemDefinition } from '../data/items';
+import { TileId } from '../data/tiles';
 import { DEBUG, FRAME, FRAME_BUDGET_MS, PLAYER, TILE } from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
@@ -18,8 +19,10 @@ import { InteractionSystem } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
 import { Hud } from '../ui/hud';
 import { createTestWorld, testSpawnPoint } from '../world/testWorld';
+import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 import { InputManager } from './input';
+import { CREATIVE_PALETTE, Mode } from './mode';
 
 /**
  * Composition root for a running game session.
@@ -38,6 +41,7 @@ export class Game {
   public readonly pickups = new PickupManager();
   public readonly particles = new ParticleSystem();
   public readonly interaction = new InteractionSystem();
+  public readonly mode = new Mode('survival');
   public readonly hud: Hud;
   public readonly input: InputManager;
 
@@ -51,6 +55,7 @@ export class Game {
   private readonly disposers: Array<() => void> = [];
 
   private aim: { x: number; y: number } | null = null;
+  private paletteIndex = 0;
   private frames = 0;
   private fpsWindowStart = 0;
   private fps = 0;
@@ -121,6 +126,8 @@ export class Game {
   private fixedUpdate(dt: number): void {
     this.camera.beginStep();
     const input = this.input.state;
+    const flags = this.mode.flags;
+    this.player.canFly = flags.canFly;
 
     this.profiler.measure('entities', FRAME_BUDGET_MS.entities, () => {
       this.player.update(
@@ -131,6 +138,7 @@ export class Game {
     });
 
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
+      if (this.mode.name === 'creative') this.updatePaletteFromWheel();
       this.aim = input.mouse.inside ? this.tileAtMouse(input.mouse.x, input.mouse.y) : null;
       this.updateInteraction(dt, input.mouse.left, input.mouse.right);
       this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
@@ -146,8 +154,16 @@ export class Game {
     );
   }
 
+  private updatePaletteFromWheel(): void {
+    const wheel = this.input.consumeWheel();
+    if (wheel === 0) return;
+    this.paletteIndex = wrapIndex(this.paletteIndex + Math.sign(wheel), CREATIVE_PALETTE.length);
+  }
+
   private updateInteraction(dt: number, mine: boolean, placeHeld: boolean): void {
     const target = this.aim;
+    const creative = this.mode.name === 'creative';
+    const paletteTile = creative ? (CREATIVE_PALETTE[this.paletteIndex] ?? null) : null;
     const breakEvent = this.interaction.update(this.world, this.player.body, this.inventory, {
       tileX: target?.x ?? 0,
       tileY: target?.y ?? 0,
@@ -156,6 +172,9 @@ export class Game {
       placePressed: this.input.consumePress('right'),
       placeHeld,
       dt,
+      instantMine: this.mode.flags.instantMine,
+      infinitePlace: this.mode.flags.infinitePlace,
+      paletteTile,
     });
 
     if (breakEvent) {
@@ -237,12 +256,25 @@ export class Game {
     lines.push(
       `stats hp ${this.player.health.toFixed(1)} food ${this.player.hunger.toFixed(1)} breath ${this.player.breath.toFixed(1)}`,
     );
+    const flags = this.mode.flags;
+    lines.push(
+      `mode ${this.mode.name} fly=${flags.canFly ? 1 : 0} instant=${flags.instantMine ? 1 : 0} ` +
+        `infPlace=${flags.infinitePlace ? 1 : 0} invuln=${flags.invulnerable ? 1 : 0}`,
+    );
+    if (this.mode.name === 'creative') {
+      const tile = CREATIVE_PALETTE[this.paletteIndex];
+      lines.push(
+        `palette ${this.paletteIndex + 1}/${CREATIVE_PALETTE.length} ${tile !== undefined ? TileId[tile] : '-'}`,
+      );
+    }
     lines.push(
       `held ${this.heldSummary()}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
     );
     if (this.aim) {
+      const cell = this.world.liquidAt(this.aim.x, this.aim.y);
       lines.push(
         `aim ${this.aim.x},${this.aim.y} tile ${this.world.getTile(this.aim.x, this.aim.y)}` +
+          ` liquid ${cell.type}:${cell.amount}` +
           (this.interaction.mining
             ? ` mining ${(this.interaction.miningProgress * 100).toFixed(0)}%`
             : ''),
@@ -343,8 +375,21 @@ export class Game {
         this.player.eatRaw();
         return;
       }
+      if (event.code === 'F6') {
+        event.preventDefault();
+        this.toggleMode();
+        return;
+      }
+      if (event.code === DEBUG.liquidKey) {
+        event.preventDefault();
+        this.spillLiquid();
+        return;
+      }
       const slot = hotbarSlotFromCode(event.code);
-      if (slot !== null) this.inventory.select(slot);
+      if (slot !== null) {
+        if (this.mode.name === 'creative') this.selectPalette(slot);
+        else this.inventory.select(slot);
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -355,6 +400,34 @@ export class Game {
 
   private onVisibilityChanged(_hidden: boolean): void {
     // M6+ persists the world here when the tab is hidden.
+  }
+
+  private toggleMode(): void {
+    const name = this.mode.toggle();
+    this.player.canFly = this.mode.flags.canFly;
+    this.hud.showItemName(name === 'creative' ? 'Creative Mode' : 'Survival Mode');
+  }
+
+  private selectPalette(index: number): void {
+    if (index < 0 || index >= CREATIVE_PALETTE.length) return;
+    this.paletteIndex = index;
+    const tile = CREATIVE_PALETTE[index];
+    if (tile !== undefined) this.hud.showItemName(TileId[tile]);
+  }
+
+  /** Debug: spill a little water at the aimed tile until M8 lands. */
+  private spillLiquid(): void {
+    const target = this.aim;
+    if (!target) return;
+    for (let dx = 0; dx < 2; dx++) {
+      for (let dy = 0; dy < 2; dy++) {
+        const x = target.x + dx;
+        const y = target.y + dy;
+        if (this.world.getTile(x, y) === TileId.Air) {
+          this.world.setLiquid(x, y, LiquidType.Water, 100);
+        }
+      }
+    }
   }
 
   private toggleFullscreen(): void {
@@ -376,4 +449,9 @@ function hotbarSlotFromCode(code: string): number | null {
     if (Number.isInteger(digit) && digit >= 0 && digit <= 9) return (digit + 9) % 10;
   }
   return null;
+}
+
+function wrapIndex(value: number, length: number): number {
+  if (length <= 0) return 0;
+  return ((value % length) + length) % length;
 }

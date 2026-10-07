@@ -1,5 +1,5 @@
 import { rectsOverlap } from '../core/math';
-import type { ItemId } from '../data/items';
+import type { Footprint, ItemId } from '../data/items';
 import { dropForTile, itemDefinition, toolClassOf } from '../data/items';
 import { isDoorTile, tileDefinition, TileId, WallId } from '../data/tiles';
 import type { ToolClass } from '../data/tiles';
@@ -38,6 +38,12 @@ export interface InteractionInput {
   /** Right mouse is held. */
   readonly placeHeld: boolean;
   readonly dt: number;
+  /** Creative: break instantly, ignoring tool requirements. */
+  readonly instantMine?: boolean;
+  /** Creative: do not consume the placed item. */
+  readonly infinitePlace?: boolean;
+  /** Creative sandbox: place this raw tile instead of the held item. */
+  readonly paletteTile?: TileId | null;
 }
 
 /**
@@ -93,12 +99,49 @@ export function hasSupport(world: World, x: number, y: number): boolean {
   );
 }
 
-export function canPlace(world: World, body: Body, item: ItemId, x: number, y: number): PlaceCheck {
+export interface PlaceSpec {
+  /** Tile written by a one-cell placement, or null for doors. */
+  readonly tile: TileId | null;
+  readonly footprint: Footprint;
+  readonly requiresSupport: boolean;
+  readonly isDoor: boolean;
+}
+
+const UNIT_FOOTPRINT: Footprint = { w: 1, h: 1 };
+
+export function specForItem(item: ItemId): PlaceSpec {
   const def = itemDefinition(item);
-  if (def.tile === null && !def.isDoor) return { ok: false, reason: 'not placeable' };
+  return {
+    tile: def.tile,
+    footprint: def.footprint,
+    requiresSupport: def.requiresSupport,
+    isDoor: def.isDoor,
+  };
+}
+
+export function specForTile(tile: TileId): PlaceSpec {
+  if (isDoorTile(tile)) {
+    return { tile: null, footprint: { w: 1, h: 2 }, requiresSupport: false, isDoor: true };
+  }
+  return {
+    tile,
+    footprint: UNIT_FOOTPRINT,
+    requiresSupport: tile === TileId.Torch,
+    isDoor: false,
+  };
+}
+
+export function canPlaceSpec(
+  world: World,
+  body: Body,
+  spec: PlaceSpec,
+  x: number,
+  y: number,
+): PlaceCheck {
+  if (spec.tile === null && !spec.isDoor) return { ok: false, reason: 'not placeable' };
   if (!withinReach(body, x, y)) return { ok: false, reason: 'out of reach' };
 
-  if (def.isDoor) {
+  if (spec.isDoor) {
     if (!isAir(world, x, y) || !isAir(world, x, y - 1)) {
       return { ok: false, reason: 'door needs two empty tiles' };
     }
@@ -108,27 +151,34 @@ export function canPlace(world: World, body: Body, item: ItemId, x: number, y: n
     return { ok: true, reason: '' };
   }
 
-  for (let dx = 0; dx < def.footprint.w; dx++) {
-    for (let dy = 0; dy < def.footprint.h; dy++) {
+  for (let dx = 0; dx < spec.footprint.w; dx++) {
+    for (let dy = 0; dy < spec.footprint.h; dy++) {
       if (!isAir(world, x + dx, y + dy)) return { ok: false, reason: 'occupied' };
       if (overlapsBody(body, x + dx, y + dy)) return { ok: false, reason: 'blocked by player' };
     }
   }
-  if (def.requiresSupport && !hasSupport(world, x, y)) {
+  if (spec.requiresSupport && !hasSupport(world, x, y)) {
     return { ok: false, reason: 'needs support' };
   }
   return { ok: true, reason: '' };
 }
 
+export function canPlace(world: World, body: Body, item: ItemId, x: number, y: number): PlaceCheck {
+  return canPlaceSpec(world, body, specForItem(item), x, y);
+}
+
 /** Writes the placed tile(s). Doors place open, bottom at (x, y). */
-export function applyPlacement(world: World, item: ItemId, x: number, y: number): void {
-  const def = itemDefinition(item);
-  if (def.isDoor) {
+export function applyPlaceSpec(world: World, spec: PlaceSpec, x: number, y: number): void {
+  if (spec.isDoor) {
     world.setTile(x, y, TileId.DoorBottomOpen);
     world.setTile(x, y - 1, TileId.DoorTopOpen);
     return;
   }
-  if (def.tile !== null) world.setTile(x, y, def.tile);
+  if (spec.tile !== null) world.setTile(x, y, spec.tile);
+}
+
+export function applyPlacement(world: World, item: ItemId, x: number, y: number): void {
+  applyPlaceSpec(world, specForItem(item), x, y);
 }
 
 /** Removes a tile (and its door partner). `drop` false suppresses the item. */
@@ -198,16 +248,27 @@ export class InteractionSystem {
     inventory: Inventory,
     input: InteractionInput,
   ): BreakEvent | null {
-    const tool = this.heldTool(inventory);
     if (!input.mine || !input.hasTarget || !withinReach(body, input.tileX, input.tileY)) {
       this.resetMining();
       return null;
     }
 
     const tile = world.getTile(input.tileX, input.tileY);
+    if (tile === TileId.Air || tileDefinition(tile).unbreakable) {
+      this.resetMining();
+      return null;
+    }
+
+    if (input.instantMine) {
+      const event = breakTile(world, input.tileX, input.tileY, true);
+      this.resetMining();
+      return event;
+    }
+
+    const tool = this.heldTool(inventory);
     const profile = miningProfile(tile, tool);
     const seconds = mineSeconds(tile, tool);
-    if (tile === TileId.Air || !profile.minable || !Number.isFinite(seconds)) {
+    if (!profile.minable || !Number.isFinite(seconds)) {
       this.resetMining();
       return null;
     }
@@ -248,14 +309,23 @@ export class InteractionSystem {
     const wants = input.placePressed || (input.placeHeld && this.placeCooldown <= 0);
     if (!wants) return;
 
+    const paletteTile = input.paletteTile ?? null;
+    if (paletteTile !== null) {
+      const spec = specForTile(paletteTile);
+      if (!canPlaceSpec(world, body, spec, input.tileX, input.tileY).ok) return;
+      applyPlaceSpec(world, spec, input.tileX, input.tileY);
+      this.placeCooldown = INTERACTION.placeRepeatSeconds;
+      return;
+    }
+
     const slot = inventory.selectedSlot;
     if (!slot) return;
-    const def = itemDefinition(slot.item);
-    if (def.tile === null && !def.isDoor) return;
-    if (!canPlace(world, body, slot.item, input.tileX, input.tileY).ok) return;
+    const spec = specForItem(slot.item);
+    if (spec.tile === null && !spec.isDoor) return;
+    if (!canPlaceSpec(world, body, spec, input.tileX, input.tileY).ok) return;
 
-    applyPlacement(world, slot.item, input.tileX, input.tileY);
-    inventory.removeFromSlot(inventory.selected, 1);
+    applyPlaceSpec(world, spec, input.tileX, input.tileY);
+    if (!input.infinitePlace) inventory.removeFromSlot(inventory.selected, 1);
     this.placeCooldown = INTERACTION.placeRepeatSeconds;
   }
 

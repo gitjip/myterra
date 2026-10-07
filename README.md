@@ -1,8 +1,9 @@
 # MyTerra
 
-MyTerra is a browser based 2D tile sandbox. M3 adds the first gameplay loop:
-mine tiles, place blocks, open and close doors, and pick up the drops. The
-resident test world, player physics and survival stats come from M1/M2.
+MyTerra is a browser based 2D tile sandbox. M4 adds the creative sandbox: a
+mode switch, flight, instant mining and placing, and a raw-tile build palette
+for assembling test scenes. The survival loop, world generation, lighting and
+liquid come next.
 
 ## Run locally
 
@@ -14,19 +15,20 @@ npm run dev
 Open the local Vite URL shown in the terminal.
 
 - Move: `A`/`D` or left/right arrows
-- Jump / swim up: `Space`
-- Swim direction: `W`/`S` or up/down arrows
+- Jump / swim up / fly up: `Space` / `W`
+- Swim or fly down: `S`
 - Mine (hold): left mouse
 - Place / open a door: right mouse
 - Select hotbar slot: `1`–`0`
+- Toggle Survival / Creative: `F6`
+- Creative palette: `1`–`9` or mouse wheel
 - Zoom: `+` / `-`
 - Fullscreen: `F11`
-- Developer overlay (FPS, budgets, inventory, player box): `F3`
-- Debug: `F7` empties hunger, `F8` eats raw meat
+- Developer overlay (FPS, budgets, mode, palette, inventory): `F3`
+- Debug: `F7` empties hunger, `F8` eats raw meat, `F9` spills water at the cursor
 
 The test scene starts you with a wood pickaxe, axe, shovel, torches, doors and
-some dirt and stone. It has flat ground, a stone wall and a water pool to the
-right of spawn.
+some dirt and stone. It has flat ground, a stone wall and a water pool.
 
 ## Checks
 

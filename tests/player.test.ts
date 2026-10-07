@@ -88,4 +88,15 @@ describe('player', () => {
     expect(player.dead).toBe(true);
     expect(player.health).toBe(0);
   });
+
+  it('flies without gravity when creative flight is enabled', () => {
+    const { player, world } = dryPlayer();
+    player.canFly = true;
+    const startY = player.body.y;
+    simulate(player, world, 1, { moveX: 1, moveY: -1, jump: false });
+    expect(player.body.vy).toBeCloseTo(-PLAYER.flySpeedVertical, 3);
+    expect(player.body.vx).toBeCloseTo(PLAYER.flySpeedHorizontal, 3);
+    expect(player.body.y).toBeLessThan(startY - 10);
+    expect(player.body.onGround).toBe(false);
+  });
 });

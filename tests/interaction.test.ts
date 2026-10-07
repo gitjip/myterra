@@ -240,3 +240,66 @@ describe('InteractionSystem', () => {
     expect(world.getTile(12, -3)).toBe(TileId.DoorTopClosed);
   });
 });
+
+describe('creative sandbox', () => {
+  const base = {
+    tileX: 12,
+    tileY: -2,
+    hasTarget: true,
+    mine: false,
+    placePressed: false,
+    placeHeld: false,
+    dt: 1 / 60,
+  } as const;
+
+  it('breaks instantly with no tool when instantMine is set', () => {
+    const world = makeWorld();
+    world.setTile(12, -2, TileId.Stone);
+    const system = new InteractionSystem();
+    const event = system.update(world, standing(), new Inventory(), {
+      ...base,
+      mine: true,
+      instantMine: true,
+    });
+    expect(event?.tile).toBe(TileId.Stone);
+    expect(world.getTile(12, -2)).toBe(TileId.Air);
+  });
+
+  it('does not consume the held item with infinitePlace', () => {
+    const world = makeWorld();
+    world.setTile(12, -1, TileId.Stone);
+    const inventory = new Inventory();
+    inventory.addItem(ItemId.Torch, 3);
+    const system = new InteractionSystem();
+    system.update(world, standing(), inventory, {
+      ...base,
+      placePressed: true,
+      infinitePlace: true,
+    });
+    expect(world.getTile(12, -2)).toBe(TileId.Torch);
+    expect(inventory.countOf(ItemId.Torch)).toBe(3);
+  });
+
+  it('places raw palette tiles with no inventory', () => {
+    const world = makeWorld();
+    const system = new InteractionSystem();
+    system.update(world, standing(), new Inventory(), {
+      ...base,
+      placePressed: true,
+      paletteTile: TileId.Stone,
+    });
+    expect(world.getTile(12, -2)).toBe(TileId.Stone);
+  });
+
+  it('places a palette door as both open halves', () => {
+    const world = makeWorld();
+    const system = new InteractionSystem();
+    system.update(world, standing(), new Inventory(), {
+      ...base,
+      placePressed: true,
+      paletteTile: TileId.DoorBottomOpen,
+    });
+    expect(world.getTile(12, -2)).toBe(TileId.DoorBottomOpen);
+    expect(world.getTile(12, -3)).toBe(TileId.DoorTopOpen);
+  });
+});

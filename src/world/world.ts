@@ -10,6 +10,17 @@ export enum LiquidType {
   Lava = 2,
 }
 
+export function liquidTypeFromByte(value: number): LiquidType {
+  switch (value) {
+    case 1:
+      return LiquidType.Water;
+    case 2:
+      return LiquidType.Lava;
+    default:
+      return LiquidType.None;
+  }
+}
+
 export interface WorldBounds {
   readonly xMin: number;
   readonly xMax: number;
@@ -33,6 +44,9 @@ export class World {
   public readonly blockLight: Uint8Array;
   public readonly liquidType: Uint8Array;
   public readonly liquidAmount: Uint8Array;
+  /** Save diff bitmaps: one bit per cell, set by gameplay edits only. */
+  public readonly tileDirty: Uint8Array;
+  public readonly liquidDirty: Uint8Array;
 
   private revisionValue = 0;
 
@@ -58,6 +72,9 @@ export class World {
     this.blockLight = new Uint8Array(cells);
     this.liquidType = new Uint8Array(cells);
     this.liquidAmount = new Uint8Array(cells);
+    const bytes = (cells + 7) >> 3;
+    this.tileDirty = new Uint8Array(bytes);
+    this.liquidDirty = new Uint8Array(bytes);
   }
 
   /** Monotonic revision used by render caches. */
@@ -98,7 +115,9 @@ export class World {
     if (tileDefinition(tile).solid) {
       this.liquidType[index] = LiquidType.None;
       this.liquidAmount[index] = 0;
+      markBit(this.liquidDirty, index);
     }
+    markBit(this.tileDirty, index);
     this.markDirtyIndex(index);
   }
 
@@ -141,11 +160,29 @@ export class World {
     if (this.liquidType[index] === safeType && this.liquidAmount[index] === safeAmount) return;
     this.liquidType[index] = safeType;
     this.liquidAmount[index] = safeAmount;
+    markBit(this.liquidDirty, index);
     this.markDirtyIndex(index);
   }
 
   public markDirty(x: number, y: number): void {
-    this.markDirtyIndex(this.idx(x, y));
+    const index = this.idx(x, y);
+    markBit(this.tileDirty, index);
+    markBit(this.liquidDirty, index);
+    this.markDirtyIndex(index);
+  }
+
+  public isTileDirty(index: number): boolean {
+    return ((this.tileDirty[index >> 3] ?? 0) & (1 << (index & 7))) !== 0;
+  }
+
+  public isLiquidDirty(index: number): boolean {
+    return ((this.liquidDirty[index >> 3] ?? 0) & (1 << (index & 7))) !== 0;
+  }
+
+  /** Resets the save diff after generation or a successful save. */
+  public clearDirty(): void {
+    this.tileDirty.fill(0);
+    this.liquidDirty.fill(0);
   }
 
   /** Bumps the render revision after a bulk, out-of-band write (generation). */
@@ -156,4 +193,9 @@ export class World {
   private markDirtyIndex(_index: number): void {
     this.revisionValue++;
   }
+}
+
+function markBit(bits: Uint8Array, index: number): void {
+  const byte = index >> 3;
+  bits[byte] = (bits[byte] ?? 0) | (1 << (index & 7));
 }

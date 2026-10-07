@@ -44,9 +44,10 @@ function makeButton(label: string, onClick: () => void, disabled = false): HTMLB
   return button;
 }
 
-/** Title screen. Only New World is active until later milestones. */
+/** Title screen. Continue is enabled once a saved world exists. */
 export class MainMenu {
   private readonly root: HTMLDivElement;
+  private readonly continueButton: HTMLButtonElement;
   public onNewWorld: () => void = () => {};
 
   public constructor(parent: HTMLElement) {
@@ -57,16 +58,26 @@ export class MainMenu {
     title.textContent = 'MYTERRA';
     Object.assign(title.style, TITLE_STYLE);
 
+    this.continueButton = makeButton('Continue', () => undefined, true);
+
     this.root.append(
       title,
       makeButton('New World', () => {
         this.onNewWorld();
       }),
-      makeButton('Continue', () => undefined, true),
+      this.continueButton,
       makeButton('Settings', () => undefined, true),
       makeButton('Credits', () => undefined, true),
     );
     parent.append(this.root);
+  }
+
+  /** Enables Continue and points it at the most recent world. */
+  public setContinue(available: boolean, onClick: () => void): void {
+    this.continueButton.disabled = !available;
+    this.continueButton.style.opacity = available ? '1' : '0.4';
+    this.continueButton.style.cursor = available ? 'pointer' : 'default';
+    this.continueButton.onclick = available ? onClick : null;
   }
 
   public show(): void {

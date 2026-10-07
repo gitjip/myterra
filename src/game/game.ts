@@ -21,12 +21,14 @@ import { Hud } from '../ui/hud';
 import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 import { findSpawn } from '../world/gen/generator';
+import type { LoadedState, SavePlayer, SaveStack } from '../save/apply';
 import { InputManager } from './input';
 import { CREATIVE_PALETTE, Mode } from './mode';
 import type { ModeName } from './mode';
 
 export interface GameOptions {
   readonly mode?: ModeName;
+  readonly saved?: LoadedState | null;
 }
 
 /**
@@ -80,13 +82,14 @@ export class Game {
     this.player = new Player(spawn.x - PLAYER.width / 2, spawn.y - PLAYER.height);
     this.mode = new Mode(options.mode ?? 'survival');
     this.player.canFly = this.mode.flags.canFly;
+    if (!options.saved?.inventory) this.seedInventory();
+    this.applyLoaded(options.saved ?? null);
     this.camera = new Camera(this.world);
     this.camera.setPosition(this.player.centreX, this.player.centreY);
     this.terrain = new TerrainRenderer(this.world);
     this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
     this.hud = new Hud(uiRoot);
-    this.seedInventory();
 
     this.inventory.emitter.on('select', (index) => {
       const slot = this.inventory.getSlot(index);
@@ -327,6 +330,46 @@ export class Game {
     this.inventory.addItem(ItemId.Dirt, 50);
     this.inventory.addItem(ItemId.Stone, 50);
     this.inventory.select(0);
+  }
+
+  private applyLoaded(saved: LoadedState | null): void {
+    if (!saved) return;
+    if (saved.player) {
+      const p = saved.player;
+      this.player.body.x = p.x;
+      this.player.body.y = p.y;
+      this.player.body.vx = p.vx;
+      this.player.body.vy = p.vy;
+      this.player.health = p.health;
+      this.player.hunger = p.hunger;
+      this.player.breath = p.breath;
+      this.player.facing = p.facing >= 0 ? 1 : -1;
+    }
+    if (saved.inventory) {
+      this.inventory.restore(
+        saved.inventory.map((slot) => (slot ? { item: slot.item, count: slot.count } : null)),
+      );
+    }
+  }
+
+  public capturePlayer(): SavePlayer {
+    const body = this.player.body;
+    return {
+      x: body.x,
+      y: body.y,
+      vx: body.vx,
+      vy: body.vy,
+      health: this.player.health,
+      hunger: this.player.hunger,
+      breath: this.player.breath,
+      facing: this.player.facing,
+    };
+  }
+
+  public captureInventory(): Array<SaveStack | null> {
+    return this.inventory
+      .snapshot()
+      .map((slot) => (slot ? { item: slot.item, count: slot.count } : null));
   }
 
   private tileAtMouse(mouseX: number, mouseY: number): { x: number; y: number } {

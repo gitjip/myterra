@@ -160,4 +160,18 @@ export class Inventory {
   public isEmpty(): boolean {
     return this.slots.every((slot) => slot === null);
   }
+
+  /** A detached copy of every slot, for saving. */
+  public snapshot(): InventorySlot[] {
+    return this.slots.map((slot) => (slot ? { item: slot.item, count: slot.count } : null));
+  }
+
+  /** Replaces the contents from a save. Extra or missing slots are ignored. */
+  public restore(slots: ReadonlyArray<InventorySlot>): void {
+    for (let i = 0; i < this.slots.length; i++) {
+      const incoming = slots[i] ?? null;
+      this.slots[i] = incoming ? { item: incoming.item, count: incoming.count } : null;
+      this.emitter.emit('change', i);
+    }
+  }
 }

@@ -66,13 +66,19 @@ export class WorldGenerator {
     while (!finished && performance.now() - started < budgetMs) {
       finished = this.advance();
     }
-    if (finished) this.world.bumpRevision();
+    if (finished) {
+      this.world.bumpRevision();
+      this.world.clearDirty();
+    }
   }
 
   /** Generates synchronously. For tests and headless use. */
   public runToCompletion(): World {
     while (!this.finishedFlag && !this.cancelledFlag) this.advance();
-    if (this.finishedFlag) this.world.bumpRevision();
+    if (this.finishedFlag) {
+      this.world.bumpRevision();
+      this.world.clearDirty();
+    }
     return this.world;
   }
 

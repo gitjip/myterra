@@ -88,7 +88,7 @@ export class Game {
   // -------------------------------------------------------------------------
 
   private fixedUpdate(dt: number): void {
-    // M2+ runs player physics; M7 adds liquid/sand; M6 adds light.
+    // M2+ runs player physics; M8 adds liquid/sand; M7 adds light.
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
       const horizontal =
         (this.keys.has('ArrowRight') || this.keys.has('KeyD') ? 1 : 0) -
@@ -211,7 +211,7 @@ export class Game {
   }
 
   private onVisibilityChanged(hidden: boolean): void {
-    // M5+ persists the world here when the tab is hidden.
+    // M6+ persists the world here when the tab is hidden.
     if (hidden) this.keys.clear();
   }
 

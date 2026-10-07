@@ -2,7 +2,7 @@ import { TEST_WORLD } from '../data/tuning';
 import { TileId, WallId } from '../data/tiles';
 import { World } from './world';
 
-/** Small deterministic scene used until the real generator lands in M4. */
+/** Small deterministic scene used until the real generator lands in M5. */
 export function createTestWorld(reachWidth: number = TEST_WORLD.reachWidth): World {
   const world = new World({ reachWidth });
   const surface: number = TEST_WORLD.surfaceY;

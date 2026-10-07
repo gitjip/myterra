@@ -92,7 +92,7 @@ function runScenario(scenario: Scenario): ScenarioResult {
 }
 
 // M0 measures the harness itself. Real scenarios arrive with their milestones:
-// world generation (M4), lighting (M6), liquid and sand (M7), entity combat (M8).
+// world generation (M5), lighting (M7), liquid and sand (M8), entity combat (M9).
 const scenarios: Scenario[] = [
   {
     name: 'loop harness overhead',

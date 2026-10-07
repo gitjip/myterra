@@ -16,6 +16,9 @@ import { Camera } from '../src/render/camera';
 import { World } from '../src/world/world';
 import { WorldGenerator } from '../src/world/gen/generator';
 import { LightSystem } from '../src/world/light';
+import { LiquidSystem } from '../src/world/liquid';
+import { TileId } from '../src/data/tiles';
+import { LiquidType } from '../src/world/world';
 
 interface Scenario {
   readonly name: string;
@@ -154,4 +157,33 @@ for (const [name, width] of genSizes) {
   console.log(
     `${name.padEnd(8)} ${String(width).padStart(6)}  gen ${genMs.toFixed(0)} ms  relight ${litMs.toFixed(0)} ms`,
   );
+}
+
+// 10k water cells poured into a basin: per-tick cost must stay under budget.
+console.log('\nliquid (10000 cells)');
+{
+  const world = new World({ reachWidth: WORLD.minReachWidth });
+  for (let x = 0; x < 400; x++) world.setTile(x, 300, TileId.Stone);
+  for (let y = 0; y <= 300; y++) {
+    world.setTile(0, y, TileId.Stone);
+    world.setTile(399, y, TileId.Stone);
+  }
+  const liquid = new LiquidSystem(world);
+  let cells = 0;
+  for (let x = 100; x < 200 && cells < 10_000; x++) {
+    for (let y = 200; y < 300 && cells < 10_000; y++) {
+      world.setLiquid(x, y, LiquidType.Water, 100);
+      cells++;
+    }
+  }
+  liquid.rebuildActive();
+  let ticks = 0;
+  let maxMs = 0;
+  while (liquid.activeCells > 0 && ticks < 40000) {
+    const started = performance.now();
+    liquid.update(2);
+    maxMs = Math.max(maxMs, performance.now() - started);
+    ticks++;
+  }
+  console.log(`${cells} cells settled in ${ticks} ticks, max ${maxMs.toFixed(2)} ms/tick`);
 }

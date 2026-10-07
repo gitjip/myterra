@@ -16,6 +16,7 @@ export enum TileId {
   CoalOre = 13,
   IronOre = 14,
   GoldOre = 15,
+  Obsidian = 16,
 }
 
 /** Background wall ids. Walls never participate in collision or lighting. */
@@ -70,6 +71,7 @@ export const TILE_DEFINITIONS: Readonly<Partial<Record<TileId, TileDefinition>>>
   [TileId.CoalOre]: tile(true, false, 2.5, 'pickaxe', true),
   [TileId.IronOre]: tile(true, false, 3.5, 'pickaxe', true),
   [TileId.GoldOre]: tile(true, false, 4, 'pickaxe', true),
+  [TileId.Obsidian]: tile(true, false, 5, 'pickaxe', true),
 };
 
 export function tileDefinition(tileId: TileId): TileDefinition {
@@ -110,6 +112,8 @@ export function tileIdFromByte(value: number): TileId {
       return TileId.IronOre;
     case 15:
       return TileId.GoldOre;
+    case 16:
+      return TileId.Obsidian;
     default:
       return TileId.Air;
   }

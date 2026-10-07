@@ -25,6 +25,7 @@ const STYLES: Readonly<Partial<Record<TileId, TileStyle>>> = {
   [TileId.CoalOre]: { base: '#5a5f69', accent: '#23272e', speckle: 0.16 },
   [TileId.IronOre]: { base: '#6b6f78', accent: '#c9a07a', speckle: 0.16 },
   [TileId.GoldOre]: { base: '#6b6f78', accent: '#f0c419', speckle: 0.16 },
+  [TileId.Obsidian]: { base: '#241a33', accent: '#5a4a7a', speckle: 0.12 },
 };
 
 const DEFAULT_STYLE: TileStyle = { base: '#ff00ff', accent: '#ff80ff', speckle: 0 };
@@ -37,7 +38,7 @@ export class TileAtlas {
   public constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.width = TILE.px * this.columns;
-    this.canvas.height = TILE.px * Math.ceil((TileId.GoldOre + 1) / this.columns);
+    this.canvas.height = TILE.px * Math.ceil((TileId.Obsidian + 1) / this.columns);
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('MyTerra: could not create the tile atlas context.');
     ctx.imageSmoothingEnabled = false;

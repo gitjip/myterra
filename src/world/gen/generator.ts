@@ -113,7 +113,7 @@ export class WorldGenerator {
       return true;
     }
     const x = this.cursor;
-    fillColumnPools(this.world, x, surfaceAt(x, this.seed));
+    fillColumnPools(this.world, x, surfaceAt(x, this.seed), this.seed);
     this.cursor++;
     return false;
   }

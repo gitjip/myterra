@@ -121,6 +121,7 @@ export class World {
     if (this.fg[index] === tile) return;
     this.fg[index] = tile;
     if (tileDefinition(tile).solid) {
+      if ((this.liquidAmount[index] ?? 0) > 0) this.displaceLiquid(index);
       this.liquidType[index] = LiquidType.None;
       this.liquidAmount[index] = 0;
       markBit(this.liquidDirty, index);
@@ -128,6 +129,38 @@ export class World {
     markBit(this.tileDirty, index);
     this.markDirtyIndex(index);
     this.emitter.emit('tile', { x, y });
+  }
+
+  /** Pushes the liquid at `index` into neighbouring cells before a block fills it. */
+  private displaceLiquid(index: number): void {
+    const amount = this.liquidAmount[index] ?? 0;
+    if (amount <= 0) return;
+    const type = liquidTypeFromByte(this.liquidType[index] ?? 0);
+    const width = this.width;
+    const col = index % width;
+    const row = (index - col) / width;
+    const neighbours: number[] = [];
+    if (row + this.yMin < this.yMax) neighbours.push(index + width);
+    if (col > 0) neighbours.push(index - 1);
+    if (col < width - 1) neighbours.push(index + 1);
+    if (row + this.yMin > this.yMin) neighbours.push(index - width);
+
+    let remaining = amount;
+    for (const n of neighbours) {
+      if (remaining <= 0) break;
+      if (tileDefinition(tileIdFromByte(this.fg[n] ?? 0)).solid) continue;
+      const nt = liquidTypeFromByte(this.liquidType[n] ?? 0);
+      if (nt !== LiquidType.None && nt !== type) continue;
+      const room = LIQUID.amountMax - (this.liquidAmount[n] ?? 0);
+      if (room <= 0) continue;
+      const moved = Math.min(room, remaining);
+      const before = this.liquidAmount[n] ?? 0;
+      this.liquidType[n] = type;
+      this.liquidAmount[n] = before + moved;
+      markBit(this.liquidDirty, n);
+      if (before === 0) this.emitter.emit('liquid', cellCoords(this, n));
+      remaining -= moved;
+    }
   }
 
   public getWall(x: number, y: number): WallId {
@@ -166,12 +199,17 @@ export class World {
     const index = this.idx(x, y);
     const safeAmount = clamp(Math.trunc(amount), 0, LIQUID.amountMax);
     const safeType = safeAmount === 0 ? LiquidType.None : type;
-    if (this.liquidType[index] === safeType && this.liquidAmount[index] === safeAmount) return;
+    const prevType = liquidTypeFromByte(this.liquidType[index] ?? 0);
+    const prevAmount = this.liquidAmount[index] ?? 0;
+    if (prevType === safeType && prevAmount === safeAmount) return;
     this.liquidType[index] = safeType;
     this.liquidAmount[index] = safeAmount;
     markBit(this.liquidDirty, index);
-    this.markDirtyIndex(index);
-    this.emitter.emit('liquid', { x, y });
+    // Liquid is not part of the chunk cache, so no render revision bump here.
+    // Light only cares about presence and type, so skip amount-only edits.
+    if (prevType !== safeType || prevAmount > 0 !== safeAmount > 0) {
+      this.emitter.emit('liquid', { x, y });
+    }
   }
 
   public markDirty(x: number, y: number): void {
@@ -208,4 +246,9 @@ export class World {
 function markBit(bits: Uint8Array, index: number): void {
   const byte = index >> 3;
   bits[byte] = (bits[byte] ?? 0) | (1 << (index & 7));
+}
+
+function cellCoords(world: World, index: number): { x: number; y: number } {
+  const col = index % world.width;
+  return { x: world.xMin + col, y: world.yMin + (index - col) / world.width };
 }

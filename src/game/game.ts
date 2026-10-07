@@ -11,6 +11,7 @@ import { Camera } from '../render/camera';
 import { DebugOverlay } from '../render/debug';
 import { InteractionRenderer } from '../render/interaction';
 import { LightOverlay } from '../render/lightOverlay';
+import { LiquidRenderer } from '../render/liquid';
 import { ParticleSystem, particleColor } from '../render/particles';
 import { PickupRenderer } from '../render/pickup';
 import { PlayerRenderer } from '../render/player';
@@ -21,6 +22,8 @@ import { Inventory } from '../systems/inventory';
 import { Hud } from '../ui/hud';
 import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
 import { LightSystem } from '../world/light';
+import { LiquidSystem } from '../world/liquid';
+import { SandSystem } from '../world/sand';
 import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 import { findSpawn } from '../world/gen/generator';
@@ -53,6 +56,8 @@ export class Game {
   public readonly interaction = new InteractionSystem();
   public readonly mode: Mode;
   public readonly light: LightSystem;
+  public readonly liquid: LiquidSystem;
+  public readonly sand: SandSystem;
   public readonly hud: Hud;
   public readonly input: InputManager;
   public timeOfDay: number = LIGHT.startTimeOfDay;
@@ -65,6 +70,8 @@ export class Game {
   private readonly pickupRenderer = new PickupRenderer();
   private readonly interactionRenderer = new InteractionRenderer();
   private readonly lightOverlay = new LightOverlay();
+  private readonly liquidRenderer = new LiquidRenderer();
+  private elapsed = 0;
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
 
@@ -113,6 +120,16 @@ export class Game {
     );
     this.light.dayFactor = dayFactorFor(this.timeOfDay);
     this.light.fullRelight();
+
+    this.liquid = new LiquidSystem(this.world);
+    this.sand = new SandSystem(this.world);
+    this.disposers.push(
+      this.world.emitter.on('tile', ({ x, y }) => {
+        this.liquid.wakeNeighbourhood(x, y);
+        this.sand.wakeNeighbourhood(x, y);
+      }),
+    );
+    this.liquid.rebuildActive();
 
     this.inventory.emitter.on('select', (index) => {
       const slot = this.inventory.getSlot(index);
@@ -190,6 +207,16 @@ export class Game {
       this.light.update();
     });
 
+    this.profiler.measure('liquid', FRAME_BUDGET_MS.liquid, () => {
+      this.liquid.update(FRAME_BUDGET_MS.liquid);
+    });
+
+    this.profiler.measure('sand', FRAME_BUDGET_MS.sand, () => {
+      this.sand.update(FRAME_BUDGET_MS.sand);
+    });
+
+    this.elapsed += dt;
+
     this.camera.follow(
       this.player.centreX,
       this.player.centreY,
@@ -254,6 +281,7 @@ export class Game {
     this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
       return this.terrain.render(this.ctx, this.camera, cssColor(sky));
     });
+    this.liquidRenderer.render(this.ctx, this.camera, this.world, this.elapsed);
     this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
     this.playerRenderer.render(
       this.ctx,
@@ -273,6 +301,10 @@ export class Game {
       highlight,
       this.interaction.miningProgress,
     );
+    if (this.player.inLava) {
+      this.ctx.fillStyle = 'rgba(180, 20, 10, 0.25)';
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
     this.hud.update(this.player, this.inventory);
 
     this.overlay.render(this.profiler, {
@@ -307,6 +339,7 @@ export class Game {
       `day ${this.timeOfDay.toFixed(3)} x${this.dayCount} factor ${this.light.dayFactor.toFixed(3)}  ` +
         `light dirty ${light.dirty} nodes ${light.nodes} ${light.ms.toFixed(2)} ms`,
     );
+    lines.push(`liquid active ${this.liquid.activeCells}  sand active ${this.sand.activeCells}`);
     const flags = this.mode.flags;
     lines.push(
       `mode ${this.mode.name} fly=${flags.canFly ? 1 : 0} instant=${flags.instantMine ? 1 : 0} ` +
@@ -511,7 +544,7 @@ export class Game {
     if (tile !== undefined) this.hud.showItemName(TileId[tile]);
   }
 
-  /** Debug: spill a little water at the aimed tile until M8 lands. */
+  /** Debug: spill a little water at the aimed tile until M10 adds buckets. */
   private spillLiquid(): void {
     const target = this.aim;
     if (!target) return;
@@ -524,6 +557,8 @@ export class Game {
         }
       }
     }
+    this.liquid.wakeNeighbourhood(target.x, target.y);
+    this.liquid.wakeNeighbourhood(target.x + 1, target.y + 1);
   }
 
   private toggleFullscreen(): void {

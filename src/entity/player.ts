@@ -1,7 +1,8 @@
 import { approach, clamp, lerp } from '../core/math';
 import { LIQUID, PLAYER, PLAYER_JUMP_VELOCITY, SURVIVAL } from '../data/tuning';
 import type { Body } from '../systems/physics';
-import { bodyInLiquid, headInLiquid, moveBody } from '../systems/physics';
+import { bodyInLiquid, headInLiquid, liquidAtBodyCentre, moveBody } from '../systems/physics';
+import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 
 /** Abstracted player intent for one fixed step; produced by the input manager. */
@@ -34,6 +35,7 @@ export class Player {
   public facing: 1 | -1 = 1;
   public dead = false;
   public inWater = false;
+  public inLava = false;
   public headInWater = false;
   public canFly: boolean;
 
@@ -69,6 +71,7 @@ export class Player {
     this.prevX = this.body.x;
     this.prevY = this.body.y;
     this.inWater = bodyInLiquid(world, this.body);
+    this.inLava = liquidAtBodyCentre(world, this.body) === LiquidType.Lava;
     this.applyMovement(this.dead ? NEUTRAL_INPUT : input, dt);
     moveBody(world, this.body, dt);
     if (!this.dead) this.updateSurvival(world, dt);
@@ -154,6 +157,9 @@ export class Player {
     }
     if (this.headInWater && this.breath <= 0) {
       this.health -= SURVIVAL.drownDamagePerSecond * dt;
+    }
+    if (this.inLava) {
+      this.health -= LIQUID.lavaDamagePerSecond * dt;
     }
 
     this.health = clamp(this.health, 0, SURVIVAL.maxHealth);

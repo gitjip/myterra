@@ -1,13 +1,17 @@
+import { hash2 } from '../../core/rng';
 import { TileId } from '../../data/tiles';
 import { GEN } from '../../data/tuning';
 import { LiquidType } from '../world';
 import type { World } from '../world';
 
 /**
- * Static pools. There is no liquid simulation until M8, so this just fills the
- * bottom of underground cave runs and leaves the cells at rest.
+ * Static pools. There is no liquid simulation until M8; this fills the bottom
+ * of a sparse selection of underground cave runs, leaving them at rest.
  */
-export function fillColumnPools(world: World, x: number, surface: number): void {
+export function fillColumnPools(world: World, x: number, surface: number, seed: number): void {
+  // Only a fraction of columns host a pool, so total volume (and settle time) stays bounded.
+  if (hash2(x, 0, seed + 31337) >= 0.12) return;
+
   const column = x - world.xMin;
   const endY = world.yMax - GEN.bedrockMargin - 1;
   let y = Math.max(world.yMin, surface + GEN.waterLevelOffset);
@@ -27,8 +31,8 @@ export function fillColumnPools(world: World, x: number, surface: number): void 
     const belowIndex = (below - world.yMin) * world.width + column;
     const floorSolid = world.fg[belowIndex] !== TileId.Air;
     const openTop = runEnd - runStart + 1;
-    if (floorSolid && openTop >= 2) {
-      const fill = Math.min(GEN.waterPoolDepth, openTop);
+    if (floorSolid && openTop >= 3) {
+      const fill = Math.min(2, openTop);
       const lava = runEnd - surface > GEN.lavaDepth;
       const type = lava ? LiquidType.Lava : LiquidType.Water;
       for (let k = 0; k < fill; k++) {

@@ -9,8 +9,10 @@ import type { World } from './world';
  * queue drains to empty once everything has settled.
  */
 export class LiquidSystem {
-  private readonly queue: number[] = [];
+  private queue = new Int32Array(1024);
   private head = 0;
+  private tail = 0;
+  private count = 0;
   private readonly queued: Uint8Array;
 
   public constructor(private readonly world: World) {
@@ -18,7 +20,7 @@ export class LiquidSystem {
   }
 
   public get activeCells(): number {
-    return this.queue.length - this.head;
+    return this.count;
   }
 
   public wake(x: number, y: number): void {
@@ -36,9 +38,7 @@ export class LiquidSystem {
 
   /** Enqueues every non-empty liquid cell. Used after loading a save. */
   public rebuildActive(): void {
-    this.queue.length = 0;
-    this.head = 0;
-    this.queued.fill(0);
+    this.reset();
     const amounts = this.world.liquidAmount;
     for (let i = 0; i < amounts.length; i++) {
       if ((amounts[i] ?? 0) > 0) this.wakeIndex(i);
@@ -46,31 +46,27 @@ export class LiquidSystem {
   }
 
   public clear(): void {
-    this.queue.length = 0;
-    this.head = 0;
-    this.queued.fill(0);
+    this.reset();
   }
 
   public update(budgetMs: number): void {
     const started = performance.now();
     let processed = 0;
     while (
-      this.head < this.queue.length &&
+      this.count > 0 &&
       processed < LIQUID.maxCellsPerTick &&
       performance.now() - started < budgetMs
     ) {
-      const index = this.queue[this.head] as number;
-      this.head++;
+      const index = this.queue[this.head] ?? 0;
+      this.head = (this.head + 1) % this.queue.length;
+      this.count--;
       this.clearQueued(index);
       processed++;
       this.process(index);
     }
-    if (this.head >= this.queue.length) {
-      this.queue.length = 0;
+    if (this.count === 0) {
       this.head = 0;
-    } else if (this.head > 4096) {
-      this.queue.splice(0, this.head);
-      this.head = 0;
+      this.tail = 0;
     }
   }
 
@@ -256,7 +252,31 @@ export class LiquidSystem {
     const bit = 1 << (index & 7);
     if (((this.queued[byte] ?? 0) & bit) !== 0) return;
     this.queued[byte] = (this.queued[byte] ?? 0) | bit;
-    this.queue.push(index);
+    this.push(index);
+  }
+
+  private push(index: number): void {
+    if (this.count === this.queue.length) this.grow();
+    this.queue[this.tail] = index;
+    this.tail = (this.tail + 1) % this.queue.length;
+    this.count++;
+  }
+
+  private grow(): void {
+    const next = new Int32Array(this.queue.length * 2);
+    for (let i = 0; i < this.count; i++) {
+      next[i] = this.queue[(this.head + i) % this.queue.length] ?? 0;
+    }
+    this.queue = next;
+    this.head = 0;
+    this.tail = this.count;
+  }
+
+  private reset(): void {
+    this.head = 0;
+    this.tail = 0;
+    this.count = 0;
+    this.queued.fill(0);
   }
 
   private clearQueued(index: number): void {

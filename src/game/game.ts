@@ -48,6 +48,8 @@ import type { ModeName } from './mode';
 export interface GameOptions {
   readonly mode?: ModeName;
   readonly saved?: LoadedState | null;
+  /** World seed, so spawns and loot are reproducible per world. */
+  readonly seed?: number;
 }
 
 /**
@@ -91,9 +93,9 @@ export class Game {
   private readonly passiveRenderer = new PassiveRenderer();
   private readonly damageNumbers = new DamageNumbers();
   private readonly combat = new CombatSystem();
-  private readonly rng = new Rng((Math.random() * 0x1_0000_0000) >>> 0);
-  private readonly spawnSystem = new SpawnSystem(this.rng);
-  private readonly passives = new PassiveManager(this.rng);
+  private readonly rng: Rng;
+  private readonly spawnSystem: SpawnSystem;
+  private readonly passives: PassiveManager;
   private readonly furnaces = new Map<string, Furnace>();
   private craftingPanel: CraftingPanel | undefined;
   private furnacePanel: FurnacePanel | undefined;
@@ -122,6 +124,9 @@ export class Game {
     this.canvas = canvas;
     this.ctx = ctx;
     this.world = world;
+    this.rng = new Rng(options.seed ?? (Math.random() * 0x1_0000_0000) >>> 0);
+    this.spawnSystem = new SpawnSystem(this.rng);
+    this.passives = new PassiveManager(this.rng);
     const spawn = findSpawn(world);
     this.spawnX = options.saved?.spawnX ?? spawn.x;
     this.spawnY = options.saved?.spawnY ?? spawn.y;
@@ -219,6 +224,7 @@ export class Game {
     this.input.dispose();
     this.hud.dispose();
     this.overlay.dispose();
+    this.terrain.dispose();
     this.craftingPanel?.dispose();
     this.furnacePanel?.dispose();
     this.deathPanel?.dispose();
@@ -380,7 +386,7 @@ export class Game {
           1,
           breakEvent.x + 0.35,
           breakEvent.y + 0.2,
-          (Math.random() - 0.5) * 3,
+          this.rng.nextRange(-1.5, 1.5),
           -2,
         );
       }
@@ -664,7 +670,7 @@ export class Game {
       1,
       passive.centreX - 0.2,
       passive.body.y,
-      (Math.random() - 0.5) * 3,
+      this.rng.nextRange(-1.5, 1.5),
       -2,
     );
   }
@@ -678,7 +684,7 @@ export class Game {
         count,
         enemy.centreX - 0.2,
         enemy.body.y,
-        (Math.random() - 0.5) * 3,
+        this.rng.nextRange(-1.5, 1.5),
         -2,
       );
     }

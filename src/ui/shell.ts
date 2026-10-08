@@ -211,6 +211,7 @@ export class Shell {
     this.game = new Game(this.canvas, this.uiRoot, this.ctx, world, {
       mode: loaded?.mode ?? meta.mode,
       saved: loaded,
+      seed: meta.seed,
     });
     this.game.onExitToMenu = () => {
       void this.exitToMenu();

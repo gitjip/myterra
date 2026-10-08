@@ -356,6 +356,8 @@ export const RENDER = {
   cameraLookEase: 8,
   /** HUD overlay refresh rate, Hz. */
   overlayHz: 5,
+  /** Maximum cached chunk canvases before the oldest off-screen ones are evicted. */
+  chunkCacheMax: 256,
 } as const;
 
 // ---------------------------------------------------------------------------

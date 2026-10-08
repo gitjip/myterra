@@ -57,6 +57,7 @@ export class World {
   public readonly emitter = new Emitter<WorldEvents>();
 
   private revisionValue = 0;
+  private bulkWrites = false;
 
   public constructor(size: WorldSize) {
     if (
@@ -127,8 +128,10 @@ export class World {
       markBit(this.liquidDirty, index);
     }
     markBit(this.tileDirty, index);
-    this.markDirtyIndex(index);
-    this.emitter.emit('tile', { x, y });
+    if (!this.bulkWrites) {
+      this.markDirtyIndex(index);
+      this.emitter.emit('tile', { x, y });
+    }
   }
 
   /** Pushes the liquid at `index` into neighbouring cells before a block fills it. */
@@ -158,7 +161,7 @@ export class World {
       this.liquidType[n] = type;
       this.liquidAmount[n] = before + moved;
       markBit(this.liquidDirty, n);
-      if (before === 0) this.emitter.emit('liquid', cellCoords(this, n));
+      if (before === 0 && !this.bulkWrites) this.emitter.emit('liquid', cellCoords(this, n));
       remaining -= moved;
     }
   }
@@ -207,7 +210,7 @@ export class World {
     markBit(this.liquidDirty, index);
     // Liquid is not part of the chunk cache, so no render revision bump here.
     // Light only cares about presence and type, so skip amount-only edits.
-    if (prevType !== safeType || prevAmount > 0 !== safeAmount > 0) {
+    if (!this.bulkWrites && (prevType !== safeType || prevAmount > 0 !== safeAmount > 0)) {
       this.emitter.emit('liquid', { x, y });
     }
   }
@@ -235,6 +238,20 @@ export class World {
 
   /** Bumps the render revision after a bulk, out-of-band write (generation). */
   public bumpRevision(): void {
+    this.revisionValue++;
+  }
+
+  /**
+   * Suppresses edit events and revision bumps during a bulk write (save load),
+   * so a large diff does not storm listeners. Dirty bits are still set, so the
+   * next save keeps the changes. Call {@link endBulk} when finished.
+   */
+  public beginBulk(): void {
+    this.bulkWrites = true;
+  }
+
+  public endBulk(): void {
+    this.bulkWrites = false;
     this.revisionValue++;
   }
 

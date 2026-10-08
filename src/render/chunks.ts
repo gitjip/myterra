@@ -1,4 +1,4 @@
-import { FRAME_BUDGET_MS, TILE } from '../data/tuning';
+import { FRAME_BUDGET_MS, RENDER, TILE } from '../data/tuning';
 import { TileId, WallId } from '../data/tiles';
 import { CHUNK } from '../world/constants';
 import type { World } from '../world/world';
@@ -7,7 +7,10 @@ import type { TileAtlas } from './atlas';
 
 interface ChunkCacheEntry {
   readonly canvas: HTMLCanvasElement;
-  revision: number;
+  /** Rebuild needed. */
+  dirty: boolean;
+  /** Has been built at least once. */
+  built: boolean;
 }
 
 export interface ChunkRenderStats {
@@ -17,15 +20,26 @@ export interface ChunkRenderStats {
   readonly drawnTiles: number;
 }
 
-/** Visible chunk cache. It never owns world data and never scans off-screen chunks. */
+/**
+ * Visible chunk cache. Each chunk tracks its own dirtiness from world edit
+ * events, so a single mined block does not invalidate the whole viewport. A
+ * chunk that runs out of rebuild budget is still drawn from its old canvas
+ * (never skipped) to avoid flicker, and off-screen canvases are evicted and
+ * pooled.
+ */
 export class ChunkRenderer {
   private readonly cache = new Map<string, ChunkCacheEntry>();
+  private readonly pool: HTMLCanvasElement[] = [];
   private readonly world: World;
   private readonly atlas: TileAtlas;
+  private readonly unsubscribe: () => void;
 
   public constructor(world: World, atlas: TileAtlas) {
     this.world = world;
     this.atlas = atlas;
+    this.unsubscribe = world.emitter.on('tile', ({ x, y }) => {
+      this.markDirty(x, y);
+    });
   }
 
   public render(ctx: CanvasRenderingContext2D, camera: Camera): ChunkRenderStats {
@@ -38,21 +52,27 @@ export class ChunkRenderer {
     let chunksDrawn = 0;
     let chunksRebuilt = 0;
     let drawnTiles = 0;
+    const visibleKeys = new Set<string>();
 
     for (let chunkY = minChunkY; chunkY <= maxChunkY; chunkY++) {
       for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
         const key = `${chunkX},${chunkY}`;
+        visibleKeys.add(key);
         let entry = this.cache.get(key);
         if (!entry) {
-          entry = { canvas: this.createCanvas(), revision: -1 };
+          entry = { canvas: this.acquireCanvas(), dirty: true, built: false };
           this.cache.set(key, entry);
         }
-        if (entry.revision !== this.world.revision) {
-          if (performance.now() - startedAt > FRAME_BUDGET_MS.render) continue;
+
+        // New chunks build immediately; dirty ones respect the frame budget.
+        const mustBuild = !entry.built;
+        if (entry.dirty && (mustBuild || performance.now() - startedAt < FRAME_BUDGET_MS.render)) {
           this.rebuild(entry.canvas, chunkX, chunkY);
-          entry.revision = this.world.revision;
+          entry.dirty = false;
+          entry.built = true;
           chunksRebuilt++;
         }
+
         const worldX = this.world.xMin + chunkX * CHUNK;
         const worldY = this.world.yMin + chunkY * CHUNK;
         const screen = camera.worldToScreen(worldX, worldY);
@@ -68,6 +88,8 @@ export class ChunkRenderer {
       }
     }
 
+    this.evict(visibleKeys);
+
     return {
       chunksVisible:
         Math.max(0, maxChunkX - minChunkX + 1) * Math.max(0, maxChunkY - minChunkY + 1),
@@ -78,10 +100,34 @@ export class ChunkRenderer {
   }
 
   public clear(): void {
+    for (const entry of this.cache.values()) this.pool.push(entry.canvas);
     this.cache.clear();
   }
 
-  private createCanvas(): HTMLCanvasElement {
+  public dispose(): void {
+    this.unsubscribe();
+    this.clear();
+    this.pool.length = 0;
+  }
+
+  private markDirty(x: number, y: number): void {
+    const entry = this.cache.get(`${this.chunkX(x)},${this.chunkY(y)}`);
+    if (entry) entry.dirty = true;
+  }
+
+  private evict(visibleKeys: Set<string>): void {
+    if (this.cache.size <= RENDER.chunkCacheMax) return;
+    for (const [key, entry] of this.cache) {
+      if (this.cache.size <= RENDER.chunkCacheMax) break;
+      if (visibleKeys.has(key)) continue;
+      this.cache.delete(key);
+      this.pool.push(entry.canvas);
+    }
+  }
+
+  private acquireCanvas(): HTMLCanvasElement {
+    const pooled = this.pool.pop();
+    if (pooled) return pooled;
     const canvas = document.createElement('canvas');
     canvas.width = CHUNK * TILE.px;
     canvas.height = CHUNK * TILE.px;

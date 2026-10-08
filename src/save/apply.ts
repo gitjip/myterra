@@ -116,27 +116,32 @@ export function applySave(world: World, bytes: Uint8Array): LoadedState {
   let player: SavePlayer | null = null;
   let inventory: ReadonlyArray<SaveStack | null> | null = null;
 
-  while (reader.remaining > 0) {
-    const tag = reader.u8();
-    const length = reader.u32();
-    const payload = reader.slice(length);
-    switch (tag) {
-      case SECTION.TileDiff:
-        decodeTileDiff(world, payload);
-        break;
-      case SECTION.LiquidDiff:
-        decodeLiquidDiff(world, payload);
-        break;
-      case SECTION.Player:
-        player = JSON.parse(decoder.decode(payload)) as SavePlayer;
-        break;
-      case SECTION.Inventory:
-        inventory = JSON.parse(decoder.decode(payload)) as Array<SaveStack | null>;
-        break;
-      default:
-        // Unknown sections are ignored so newer saves degrade gracefully.
-        break;
+  world.beginBulk();
+  try {
+    while (reader.remaining > 0) {
+      const tag = reader.u8();
+      const length = reader.u32();
+      const payload = reader.slice(length);
+      switch (tag) {
+        case SECTION.TileDiff:
+          decodeTileDiff(world, payload);
+          break;
+        case SECTION.LiquidDiff:
+          decodeLiquidDiff(world, payload);
+          break;
+        case SECTION.Player:
+          player = JSON.parse(decoder.decode(payload)) as SavePlayer;
+          break;
+        case SECTION.Inventory:
+          inventory = JSON.parse(decoder.decode(payload)) as Array<SaveStack | null>;
+          break;
+        default:
+          // Unknown sections are ignored so newer saves degrade gracefully.
+          break;
+      }
     }
+  } finally {
+    world.endBulk();
   }
 
   return {

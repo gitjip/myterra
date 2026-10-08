@@ -40,4 +40,8 @@ export class TerrainRenderer {
   public get renderBudgetMs(): number {
     return FRAME_BUDGET_MS.render;
   }
+
+  public dispose(): void {
+    this.chunks.dispose();
+  }
 }

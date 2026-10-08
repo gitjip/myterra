@@ -1,5 +1,5 @@
 import { approach, chebyshev } from '../core/math';
-import type { Rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import { ItemId } from '../data/items';
 import { TileId } from '../data/tiles';
 import { ENTITY, PLAYER } from '../data/tuning';
@@ -50,6 +50,7 @@ export class Passive {
     public readonly kind: PassiveKind,
     x: number,
     y: number,
+    private readonly rng: Rng = new Rng(0),
   ) {
     this.def = PASSIVES[kind];
     this.hp = this.def.hp;
@@ -82,8 +83,8 @@ export class Passive {
     } else {
       this.wanderTimer -= dt;
       if (this.wanderTimer <= 0) {
-        this.wanderTimer = 1 + Math.random() * 2;
-        this.wanderDir = Math.random() < 0.5 ? -1 : 1;
+        this.wanderTimer = this.rng.nextRange(1, 3);
+        this.wanderDir = this.rng.chance(0.5) ? -1 : 1;
       }
       this.body.vx = approach(
         this.body.vx,
@@ -150,7 +151,7 @@ export class PassiveManager {
       const spot = this.findGrassSpot(world, x, Math.round(playerY), dayFactor);
       if (spot === null) continue;
       this.rabbits.push(
-        new Passive(PassiveKind.Rabbit, x, spot - PASSIVES[PassiveKind.Rabbit].height),
+        new Passive(PassiveKind.Rabbit, x, spot - PASSIVES[PassiveKind.Rabbit].height, this.rng),
       );
       break;
     }

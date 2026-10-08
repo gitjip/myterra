@@ -20,6 +20,14 @@ export enum TileId {
   Workbench = 17,
   Furnace = 18,
   Chest = 19,
+  Sandstone = 20,
+  Cactus = 21,
+  Snow = 22,
+  Ice = 23,
+  Mud = 24,
+  JungleGrass = 25,
+  Hardwood = 26,
+  Vine = 27,
 }
 
 /** Background wall ids. Walls never participate in collision or lighting. */
@@ -90,6 +98,14 @@ export const TILE_DEFINITIONS: Readonly<Partial<Record<TileId, TileDefinition>>>
   [TileId.Workbench]: tile(true, false, 1, 'hammer', false, false, { w: 2, h: 1 }),
   [TileId.Furnace]: tile(true, false, 2, 'pickaxe', false, false, { w: 2, h: 1 }),
   [TileId.Chest]: tile(true, false, 1, 'hammer', false, false, { w: 2, h: 1 }),
+  [TileId.Sandstone]: tile(true, false, 2.4, 'pickaxe', true),
+  [TileId.Cactus]: tile(true, false, 0.5, 'axe'),
+  [TileId.Snow]: tile(true, false, 0.3, 'shovel'),
+  [TileId.Ice]: tile(true, false, 0.5, 'pickaxe'),
+  [TileId.Mud]: tile(true, false, 0.5, 'shovel'),
+  [TileId.JungleGrass]: tile(true, false, 0.5, 'shovel'),
+  [TileId.Hardwood]: tile(true, false, 2.5, 'axe'),
+  [TileId.Vine]: tile(false, true, 0.2, 'axe'),
 };
 
 export function tileDefinition(tileId: TileId): TileDefinition {
@@ -138,6 +154,22 @@ export function tileIdFromByte(value: number): TileId {
       return TileId.Furnace;
     case 19:
       return TileId.Chest;
+    case 20:
+      return TileId.Sandstone;
+    case 21:
+      return TileId.Cactus;
+    case 22:
+      return TileId.Snow;
+    case 23:
+      return TileId.Ice;
+    case 24:
+      return TileId.Mud;
+    case 25:
+      return TileId.JungleGrass;
+    case 26:
+      return TileId.Hardwood;
+    case 27:
+      return TileId.Vine;
     default:
       return TileId.Air;
   }

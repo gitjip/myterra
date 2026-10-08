@@ -29,6 +29,14 @@ const STYLES: Readonly<Partial<Record<TileId, TileStyle>>> = {
   [TileId.Workbench]: { base: '#7a5330', accent: '#c08a4a', speckle: 0.05 },
   [TileId.Furnace]: { base: '#5b5b60', accent: '#2a2a2e', speckle: 0.08 },
   [TileId.Chest]: { base: '#8a5a2c', accent: '#e0b45a', speckle: 0.05 },
+  [TileId.Sandstone]: { base: '#c2a566', accent: '#9c8047', speckle: 0.08 },
+  [TileId.Cactus]: { base: '#2f7d46', accent: '#1f5230', speckle: 0.06 },
+  [TileId.Snow]: { base: '#e6edf5', accent: '#ffffff', speckle: 0.05 },
+  [TileId.Ice]: { base: '#9cc7e8', accent: '#d6ecff', speckle: 0.06 },
+  [TileId.Mud]: { base: '#5a4632', accent: '#6f5740', speckle: 0.1 },
+  [TileId.JungleGrass]: { base: '#5a4632', accent: '#3f9b4a', speckle: 0.06 },
+  [TileId.Hardwood]: { base: '#6e4326', accent: '#a06a3b', speckle: 0.08 },
+  [TileId.Vine]: { base: '#2f6b3a', accent: '#4da96b', speckle: 0.12 },
 };
 
 const DEFAULT_STYLE: TileStyle = { base: '#ff00ff', accent: '#ff80ff', speckle: 0 };
@@ -41,7 +49,7 @@ export class TileAtlas {
   public constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.width = TILE.px * this.columns;
-    this.canvas.height = TILE.px * Math.ceil((TileId.Chest + 1) / this.columns);
+    this.canvas.height = TILE.px * Math.ceil((TileId.Vine + 1) / this.columns);
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('MyTerra: could not create the tile atlas context.');
     ctx.imageSmoothingEnabled = false;
@@ -69,7 +77,7 @@ export class TileAtlas {
     if (style.base.endsWith('00')) return;
     ctx.fillStyle = style.base;
     ctx.fillRect(sx, sy, TILE.px, TILE.px);
-    if (tile === TileId.Grass) {
+    if (tile === TileId.Grass || tile === TileId.JungleGrass) {
       ctx.fillStyle = style.accent;
       ctx.fillRect(sx, sy, TILE.px, 4);
     } else if (tile === TileId.Torch) {

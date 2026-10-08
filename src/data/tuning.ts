@@ -291,7 +291,7 @@ export const GEN = {
    * Bump whenever generation output changes. Stored in the save header because
    * background walls are regenerated from the seed and would otherwise misalign.
    */
-  genVersion: 2,
+  genVersion: 3,
   /** Per-frame generation budget during the progress screen, milliseconds. */
   budgetMs: 8.0,
   biomeTransitionTiles: 48,

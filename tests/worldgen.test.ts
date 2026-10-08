@@ -101,6 +101,28 @@ describe('world generation', () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  it('grows distinct surface tiles for all four biomes', () => {
+    const world = generate(9);
+    const present = new Set<TileId>();
+    for (let x = 0; x < WIDTH; x += 2) {
+      for (let y: number = WORLD.yReachMin; y <= WORLD.yReachMax; y++) {
+        present.add(world.getTile(x, y));
+      }
+    }
+    for (const tile of [
+      TileId.Grass,
+      TileId.Sand,
+      TileId.Sandstone,
+      TileId.Cactus,
+      TileId.Snow,
+      TileId.Ice,
+      TileId.JungleGrass,
+      TileId.Hardwood,
+    ]) {
+      expect(present.has(tile)).toBe(true);
+    }
+  });
+
   it('finds a spawn with three air rows above solid ground', () => {
     const world = generate(5);
     const spawn = findSpawn(world);

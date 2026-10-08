@@ -14,7 +14,13 @@ export interface SpawnPoint {
   readonly y: number;
 }
 
-const SURFACE_TILES = new Set<TileId>([TileId.Grass, TileId.Dirt, TileId.Sand]);
+const SURFACE_TILES = new Set<TileId>([
+  TileId.Grass,
+  TileId.Dirt,
+  TileId.Sand,
+  TileId.Snow,
+  TileId.JungleGrass,
+]);
 
 const PHASE_COUNT = 3;
 

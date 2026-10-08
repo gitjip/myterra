@@ -39,6 +39,13 @@ export enum ItemId {
   Silk = 34,
   Leather = 35,
   Rope = 36,
+  Sandstone = 37,
+  Cactus = 38,
+  Snow = 39,
+  Ice = 40,
+  Mud = 41,
+  Hardwood = 42,
+  Vine = 43,
 }
 
 export type StationType = 'workbench' | 'furnace' | 'chest';
@@ -157,6 +164,14 @@ export const ITEM_DEFINITIONS: Readonly<Record<ItemId, ItemDefinition>> = {
     station: 'chest',
     footprint: { w: 2, h: 1 },
   }),
+
+  [ItemId.Sandstone]: block('Sandstone', TileId.Sandstone),
+  [ItemId.Cactus]: block('Cactus', TileId.Cactus),
+  [ItemId.Snow]: block('Snow', TileId.Snow),
+  [ItemId.Ice]: block('Ice', TileId.Ice),
+  [ItemId.Mud]: block('Mud', TileId.Mud),
+  [ItemId.Hardwood]: block('Hardwood', TileId.Hardwood, { fuelValue: 12 }),
+  [ItemId.Vine]: block('Vine', TileId.Vine),
 };
 
 export function itemDefinition(item: ItemId): ItemDefinition {
@@ -217,6 +232,22 @@ export function dropForTile(tileId: TileId): ItemId | null {
       return ItemId.Furnace;
     case TileId.Chest:
       return ItemId.Chest;
+    case TileId.Sandstone:
+      return ItemId.Sandstone;
+    case TileId.Cactus:
+      return ItemId.Cactus;
+    case TileId.Snow:
+      return ItemId.Snow;
+    case TileId.Ice:
+      return ItemId.Ice;
+    case TileId.Mud:
+      return ItemId.Mud;
+    case TileId.JungleGrass:
+      return ItemId.Mud;
+    case TileId.Hardwood:
+      return ItemId.Hardwood;
+    case TileId.Vine:
+      return ItemId.Vine;
     case TileId.DoorTopClosed:
     case TileId.DoorTopOpen:
     case TileId.DoorBottomClosed:

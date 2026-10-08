@@ -12,6 +12,8 @@ export enum BiomeId {
   Jungle = 3,
 }
 
+export type TreeKind = 'oak' | 'pine' | 'jungle' | 'cactus' | 'none';
+
 export interface BiomeDefinition {
   readonly id: BiomeId;
   readonly name: string;
@@ -21,17 +23,18 @@ export interface BiomeDefinition {
   readonly elevation: number;
   /** Multiplier on the hill amplitude. */
   readonly hillScale: number;
+  readonly treeKind: TreeKind;
   /** Probability per eligible column of growing a tree. */
   readonly treeChance: number;
+  /** Extra chance of a cactus, for the desert. */
+  readonly cactusChance: number;
+  /** Chance that a jungle tree edge grows a hanging vine. */
+  readonly vineChance: number;
   readonly trunk: TileId;
   readonly leaf: TileId;
   readonly leafRadius: number;
 }
 
-/**
- * Non-forest surfaces use available tiles until content expansion adds snow,
- * ice, mud and cactus. Only the parameters differ for now.
- */
 export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   [BiomeId.Forest]: {
     id: BiomeId.Forest,
@@ -40,7 +43,10 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     subsurface: TileId.Dirt,
     elevation: 0,
     hillScale: 1,
+    treeKind: 'oak',
     treeChance: 0.12,
+    cactusChance: 0,
+    vineChance: 0,
     trunk: TileId.Wood,
     leaf: TileId.Leaf,
     leafRadius: 2,
@@ -49,35 +55,44 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     id: BiomeId.Desert,
     name: 'Desert',
     surface: TileId.Sand,
-    subsurface: TileId.Sand,
+    subsurface: TileId.Sandstone,
     elevation: -2,
     hillScale: 0.5,
+    treeKind: 'cactus',
     treeChance: 0,
-    trunk: TileId.Wood,
-    leaf: TileId.Leaf,
-    leafRadius: 2,
+    cactusChance: 0.16,
+    vineChance: 0,
+    trunk: TileId.Cactus,
+    leaf: TileId.Cactus,
+    leafRadius: 0,
   },
   [BiomeId.Snow]: {
     id: BiomeId.Snow,
     name: 'Snow',
-    surface: TileId.Grass,
-    subsurface: TileId.Dirt,
+    surface: TileId.Snow,
+    subsurface: TileId.Ice,
     elevation: 3,
     hillScale: 1.3,
-    treeChance: 0.06,
-    trunk: TileId.Wood,
+    treeKind: 'pine',
+    treeChance: 0.08,
+    cactusChance: 0,
+    vineChance: 0,
+    trunk: TileId.Hardwood,
     leaf: TileId.Leaf,
     leafRadius: 2,
   },
   [BiomeId.Jungle]: {
     id: BiomeId.Jungle,
     name: 'Jungle',
-    surface: TileId.Grass,
-    subsurface: TileId.Dirt,
+    surface: TileId.JungleGrass,
+    subsurface: TileId.Mud,
     elevation: -1,
     hillScale: 1.1,
+    treeKind: 'jungle',
     treeChance: 0.24,
-    trunk: TileId.Wood,
+    cactusChance: 0,
+    vineChance: 0.35,
+    trunk: TileId.Hardwood,
     leaf: TileId.Leaf,
     leafRadius: 3,
   },
@@ -151,7 +166,10 @@ export function lerpBiome(a: BiomeId, b: BiomeId, t: number): BiomeDefinition {
     subsurface: t < 0.5 ? da.subsurface : db.subsurface,
     elevation: da.elevation + (db.elevation - da.elevation) * t,
     hillScale: da.hillScale + (db.hillScale - da.hillScale) * t,
+    treeKind: t < 0.5 ? da.treeKind : db.treeKind,
     treeChance: da.treeChance + (db.treeChance - da.treeChance) * t,
+    cactusChance: da.cactusChance + (db.cactusChance - da.cactusChance) * t,
+    vineChance: da.vineChance + (db.vineChance - da.vineChance) * t,
     trunk: t < 0.5 ? da.trunk : db.trunk,
     leaf: t < 0.5 ? da.leaf : db.leaf,
     leafRadius: t < 0.5 ? da.leafRadius : db.leafRadius,

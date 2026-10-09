@@ -43,7 +43,6 @@ import { Furnace } from '../systems/furnace';
 import { SpawnSystem } from '../systems/spawn';
 import { loadSettings, saveSettings } from '../systems/settings';
 import type { Settings } from '../systems/settings';
-import { CraftingPanel } from '../ui/crafting';
 import { CreativePanel } from '../ui/creativePanel';
 import { DeathPanel } from '../ui/death';
 import { FurnacePanel } from '../ui/furnace';
@@ -117,7 +116,6 @@ export class Game {
   private readonly projectiles = new ProjectileManager();
   private readonly furnaces = new Map<string, Furnace>();
   private readonly containers = new ContainerStore();
-  private craftingPanel: CraftingPanel | undefined;
   private furnacePanel: FurnacePanel | undefined;
   private inventoryPanel: InventoryPanel | undefined;
   private deathPanel: DeathPanel | undefined;
@@ -174,11 +172,10 @@ export class Game {
     this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
     this.hud = new Hud(uiRoot);
-    this.craftingPanel = new CraftingPanel(uiRoot);
     this.furnacePanel = new FurnacePanel(uiRoot);
     this.inventoryPanel = new InventoryPanel(uiRoot);
     this.inventoryPanel.bind(this.inventory, null);
-    this.craftingPanel.onCraft = (recipe) => {
+    this.inventoryPanel.onCraft = (recipe) => {
       craft(recipe, this.inventory, this.mode.flags.skipCrafting);
     };
     this.furnacePanel.onInsert = (item) => {
@@ -209,6 +206,7 @@ export class Game {
     };
     this.settingsPanel.onClose = () => {
       this.settingsPanel?.set(false);
+      if (this.paused) this.pausePanel?.set(true);
     };
     this.settingsPanel.onSettingsChange = (settings) => {
       this.settings = settings;
@@ -293,7 +291,6 @@ export class Game {
     this.hud.dispose();
     this.overlay.dispose();
     this.terrain.dispose();
-    this.craftingPanel?.dispose();
     this.furnacePanel?.dispose();
     this.inventoryPanel?.dispose();
     this.deathPanel?.dispose();
@@ -393,8 +390,18 @@ export class Game {
       this.resolveProjectiles();
     });
 
-    if (this.player.dead && !(this.deathPanel?.open ?? false)) this.deathPanel?.show();
-    else if (!this.player.dead && (this.deathPanel?.open ?? false)) this.deathPanel?.hide();
+    if (this.player.dead) {
+      if (!(this.deathPanel?.open ?? false)) {
+        this.setUi('none');
+        this.creativePanel?.set(false);
+        this.settingsPanel?.set(false);
+        this.pausePanel?.set(false);
+        this.paused = false;
+        this.deathPanel?.show();
+      }
+    } else if (this.deathPanel?.open ?? false) {
+      this.deathPanel?.hide();
+    }
 
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
       if (this.mode.name === 'creative') this.updatePaletteFromWheel();
@@ -576,11 +583,15 @@ export class Game {
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
     this.hud.update(this.player, this.inventory);
+    if (this.uiState !== 'none') {
+      // Stations can change as the player moves while the panel is open.
+      this.inventoryPanel?.setCrafting(
+        { workbench: this.hasStation(TileId.Workbench), anvil: this.hasStation(TileId.Anvil) },
+        this.mode.flags.skipCrafting,
+        this.uiState === 'inventory' || this.uiState === 'workbench' || this.uiState === 'anvil',
+      );
+    }
     this.inventoryPanel?.update();
-    this.craftingPanel?.update(this.inventory, {
-      workbench: this.hasStation(TileId.Workbench),
-      anvil: this.hasStation(TileId.Anvil),
-    });
     if (this.uiState === 'furnace' && this.activeFurnace) {
       this.furnacePanel?.update(this.activeFurnace, this.inventory);
     }
@@ -642,7 +653,7 @@ export class Game {
             : ''),
       );
     }
-    lines.push(`inventory ${this.inventorySummary()}`);
+    lines.push(`inventory ${this.usedSlots()}/${this.inventory.size} slots used`);
     const stats = this.terrainStats;
     if (stats) {
       lines.push(
@@ -658,13 +669,12 @@ export class Game {
     return `${nameOf(slot.item)} x${slot.count}`;
   }
 
-  private inventorySummary(): string {
-    const parts: string[] = [];
+  private usedSlots(): number {
+    let used = 0;
     for (let i = 0; i < this.inventory.size; i++) {
-      const slot = this.inventory.getSlot(i);
-      if (slot) parts.push(`${i}:${nameOf(slot.item)}x${slot.count}`);
+      if (this.inventory.getSlot(i)) used++;
     }
-    return parts.length > 0 ? parts.join(' ') : 'empty';
+    return used;
   }
 
   // -------------------------------------------------------------------------
@@ -766,6 +776,9 @@ export class Game {
   }
 
   private toggleInventory(): void {
+    if (this.creativePanel?.open) this.creativePanel.set(false);
+    if (this.settingsPanel?.open) this.settingsPanel.set(false);
+    if (this.pausePanel?.open) this.setPaused(false);
     this.setUi(this.uiState === 'none' ? 'inventory' : 'none');
   }
 
@@ -774,7 +787,11 @@ export class Game {
     if (state !== 'chest') this.activeChest = null;
     this.inventoryPanel?.bind(this.inventory, state === 'chest' ? this.activeChest : null);
     this.inventoryPanel?.setOpen(state !== 'none');
-    this.craftingPanel?.set(state === 'inventory' || state === 'workbench' || state === 'anvil');
+    this.inventoryPanel?.setCrafting(
+      { workbench: this.hasStation(TileId.Workbench), anvil: this.hasStation(TileId.Anvil) },
+      this.mode.flags.skipCrafting,
+      state === 'inventory' || state === 'workbench' || state === 'anvil',
+    );
     this.furnacePanel?.set(state === 'furnace');
     if (state !== 'furnace') this.activeFurnace = null;
     this.hud.setHotbarVisible(state === 'none');
@@ -811,6 +828,7 @@ export class Game {
   }
 
   private openSettings(): void {
+    this.pausePanel?.set(false);
     this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
     this.settingsPanel?.set(true);
   }
@@ -1091,7 +1109,10 @@ export class Game {
       }
       if (event.code === 'KeyC') {
         event.preventDefault();
-        if (this.mode.name === 'creative' && !this.paused) this.creativePanel?.toggle();
+        if (this.mode.name === 'creative' && !this.paused) {
+          if (!this.creativePanel?.open) this.setUi('none');
+          this.creativePanel?.toggle();
+        }
         return;
       }
       if (event.code === DEBUG.starveKey) {

@@ -3,13 +3,13 @@ import type { ItemId } from '../data/items';
 import { FURNACE_RECIPES } from '../data/recipes';
 import type { Furnace } from '../systems/furnace';
 import type { Inventory } from '../systems/inventory';
-import { slotSignature } from './crafting';
+import { slotSignature } from './inventory';
 
 const PANEL: Partial<CSSStyleDeclaration> = {
   position: 'fixed',
   top: '50%',
   left: '50%',
-  transform: 'translate(-50%, -50%)',
+  transform: 'translate(-50%, 160px)',
   width: '360px',
   background: 'rgba(10, 12, 20, 0.95)',
   border: '1px solid #2a2f45',

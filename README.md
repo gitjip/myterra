@@ -72,7 +72,9 @@ up and place stacks, right-click to split or place one, Shift-click to quick
 move. Equipment has four slots: helmet, chest, legs and ammo (there is no
 weapon slot; weapons are held in the hotbar). Right-click a workbench, anvil or
 furnace to use it; right-click a chest to open its 20 slots (persisted with the
-world); right-click a bed to set your respawn point.
+world); right-click a bed to set your respawn point. The crafting list lives in
+the same panel: hand recipes are always shown, and workbench/anvil recipes
+appear once you are within reach of that station.
 
 ## Settings and creative mode
 

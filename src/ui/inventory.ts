@@ -1,8 +1,12 @@
 import { itemDefinition } from '../data/items';
 import type { ItemId } from '../data/items';
+import type { Recipe } from '../data/recipes';
+import { canCraft, listRecipes } from '../systems/crafting';
+import type { CraftStations } from '../systems/crafting';
 import { INVENTORY } from '../data/tuning';
 import { EQUIPMENT_SLOTS } from '../systems/inventory';
 import type { EquipmentSlot, Inventory, InventorySlot, ItemStack } from '../systems/inventory';
+import { TEXT } from './text';
 
 type SlotRef =
   | { readonly kind: 'inv'; readonly index: number }
@@ -37,10 +41,21 @@ const SLOT: Partial<CSSStyleDeclaration> = {
   cursor: 'pointer',
 };
 
+const SMALL_BUTTON: Partial<CSSStyleDeclaration> = {
+  padding: '3px 8px',
+  background: '#1a1f2e',
+  color: '#d7dceb',
+  border: '1px solid #2a2f45',
+  borderRadius: '3px',
+  font: 'inherit',
+  cursor: 'pointer',
+};
+
 /**
- * Inventory + equipment + chest panel. Click-based item moving (pick up / put
- * down / swap), shift for quick move, right-click to place one or split a
- * stack, and a floating cursor stack. Full crafting UI stays in M13.
+ * Inventory + equipment + chest + crafting panel. Click-based item moving (pick
+ * up / put down / swap), shift for quick move, right-click to place one or split
+ * a stack, and a floating cursor stack. The crafting list is part of the same
+ * panel so nothing overlaps.
  */
 export class InventoryPanel {
   private readonly root: HTMLDivElement;
@@ -48,6 +63,8 @@ export class InventoryPanel {
   private readonly equipGrid: HTMLDivElement;
   private readonly chestWrap: HTMLDivElement;
   private readonly chestGrid: HTMLDivElement;
+  private readonly craftWrap: HTMLDivElement;
+  private readonly craftList: HTMLDivElement;
   private readonly cursorEl: HTMLDivElement;
   private readonly slotEls = new Map<string, HTMLDivElement>();
   private inventory: Inventory | null = null;
@@ -55,13 +72,17 @@ export class InventoryPanel {
   private cursorStack: ItemStack | null = null;
   private signature = '';
   private openState = false;
+  private craftVisible = false;
+  private free = false;
+  private stations: CraftStations = { workbench: false, anvil: false };
+  public onCraft: (recipe: Recipe) => void = () => {};
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
     Object.assign(this.root.style, PANEL);
 
     const title = document.createElement('div');
-    title.textContent = 'Inventory';
+    title.textContent = TEXT.inventory.title;
     Object.assign(title.style, { fontWeight: 'bold', marginBottom: '8px', letterSpacing: '1px' });
 
     const body = document.createElement('div');
@@ -72,16 +93,31 @@ export class InventoryPanel {
 
     const side = document.createElement('div');
     const sideLabel = document.createElement('div');
-    sideLabel.textContent = 'Equipment';
+    sideLabel.textContent = TEXT.inventory.equipment;
     Object.assign(sideLabel.style, { color: '#8b93b0', marginBottom: '4px' });
     side.append(sideLabel, this.equipGrid);
 
-    body.append(this.mainGrid, side);
+    this.craftWrap = document.createElement('div');
+    Object.assign(this.craftWrap.style, { width: '220px' });
+    const craftLabel = document.createElement('div');
+    craftLabel.textContent = TEXT.crafting.title;
+    Object.assign(craftLabel.style, { color: '#8b93b0', marginBottom: '4px' });
+    this.craftList = document.createElement('div');
+    Object.assign(this.craftList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      maxHeight: '220px',
+      overflowY: 'auto',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.craftWrap.append(craftLabel, this.craftList);
+
+    body.append(this.mainGrid, side, this.craftWrap);
 
     this.chestWrap = document.createElement('div');
     Object.assign(this.chestWrap.style, { marginTop: '10px', display: 'none' });
     const chestLabel = document.createElement('div');
-    chestLabel.textContent = 'Chest';
+    chestLabel.textContent = TEXT.inventory.chest;
     Object.assign(chestLabel.style, { color: '#8b93b0', marginBottom: '4px' });
     this.chestGrid = this.makeGrid(2, 10);
     this.chestWrap.append(chestLabel, this.chestGrid);
@@ -127,6 +163,13 @@ export class InventoryPanel {
     this.chestWrap.style.display = chest ? 'block' : 'none';
   }
 
+  public setCrafting(stations: CraftStations, free: boolean, visible: boolean): void {
+    this.stations = stations;
+    this.free = free;
+    this.craftVisible = visible;
+    this.craftWrap.style.display = visible ? 'block' : 'none';
+  }
+
   public update(): void {
     if (!this.openState) return;
     const signature = this.buildSignature();
@@ -136,6 +179,7 @@ export class InventoryPanel {
       this.paint(elementRef(key), element);
     }
     this.paintCursor();
+    this.paintCrafting();
   }
 
   public dispose(): void {
@@ -333,13 +377,21 @@ export class InventoryPanel {
   }
 
   private buildSignature(): string {
-    const parts: string[] = [];
-    for (let i = 0; i < this.inventorySize(); i++)
+    const parts: string[] = [
+      this.craftVisible ? '1' : '0',
+      this.stations.workbench ? 'w' : '-',
+      this.stations.anvil ? 'a' : '-',
+      this.free ? 'f' : '-',
+    ];
+    for (let i = 0; i < this.inventorySize(); i++) {
       parts.push(slotSig(this.get({ kind: 'inv', index: i })));
+    }
     for (const slot of EQUIPMENT_SLOTS) parts.push(slotSig(this.get({ kind: 'equip', slot })));
-    if (this.chest)
-      for (let i = 0; i < this.chest.length; i++)
+    if (this.chest) {
+      for (let i = 0; i < this.chest.length; i++) {
         parts.push(slotSig(this.get({ kind: 'chest', index: i })));
+      }
+    }
     return parts.join('|');
   }
 
@@ -372,6 +424,40 @@ export class InventoryPanel {
     }
   }
 
+  private paintCrafting(): void {
+    if (!this.craftVisible || !this.inventory) return;
+    this.craftList.textContent = '';
+    for (const recipe of listRecipes(this.stations)) {
+      const row = document.createElement('div');
+      Object.assign(row.style, {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '6px',
+      } satisfies Partial<CSSStyleDeclaration>);
+      const label = document.createElement('span');
+      label.textContent = `${itemDefinition(recipe.output).name} x${recipe.count}`;
+      Object.assign(label.style, {
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      } satisfies Partial<CSSStyleDeclaration>);
+      const button = document.createElement('button');
+      button.textContent = TEXT.crafting.craft;
+      Object.assign(button.style, SMALL_BUTTON);
+      const enabled = this.free || canCraft(recipe, this.inventory);
+      button.disabled = !enabled;
+      button.style.opacity = enabled ? '1' : '0.4';
+      button.addEventListener('click', () => {
+        this.onCraft(recipe);
+        this.signature = '';
+        this.update();
+      });
+      row.append(label, button);
+      this.craftList.append(row);
+    }
+  }
+
   private paintCursor(): void {
     if (!this.cursorStack) {
       this.cursorEl.style.display = 'none';
@@ -388,6 +474,15 @@ export class InventoryPanel {
     this.cursorStack = null;
     this.paintCursor();
   }
+}
+
+export function slotSignature(inventory: Inventory): string {
+  const parts: string[] = [];
+  for (let i = 0; i < inventory.size; i++) {
+    const slot = inventory.getSlot(i);
+    if (slot) parts.push(`${i}:${slot.item}:${slot.count}`);
+  }
+  return parts.join(',');
 }
 
 function refKey(ref: SlotRef): string {

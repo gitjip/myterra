@@ -703,10 +703,12 @@ export class Game {
     const body = this.player.body;
     lines.push(
       `player ${body.x.toFixed(2)},${body.y.toFixed(2)} vel ${body.vx.toFixed(2)},${body.vy.toFixed(2)} ` +
-        `${body.onGround ? 'ground' : 'air'}${this.player.inWater ? ' water' : ''}${this.player.dead ? ' DEAD' : ''}`,
+        `${body.onGround ? 'ground' : 'air'}${this.player.inWater ? ' water' : ''}${this.player.inLava ? ' lava' : ''}` +
+        `${this.player.headInWater ? ' headwater' : ''}${this.player.dead ? ' DEAD' : ''}`,
     );
     lines.push(
-      `stats hp ${this.player.health.toFixed(1)} food ${this.player.hunger.toFixed(1)} breath ${this.player.breath.toFixed(1)}`,
+      `stats hp ${this.player.health.toFixed(1)} food ${this.player.hunger.toFixed(1)} breath ${this.player.breath.toFixed(1)} ` +
+        `invuln ${this.player.invulnTimer.toFixed(2)}`,
     );
     const light = this.light.stats;
     lines.push(
@@ -730,14 +732,21 @@ export class Game {
       `held ${this.heldSummary()}  enemies ${this.enemies.length}  arrows ${this.projectiles.count}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
     );
     if (this.aim) {
-      const cell = this.world.liquidAt(this.aim.x, this.aim.y);
+      const { x, y } = this.aim;
+      const idx = this.world.idx(x, y);
+      const cell = this.world.liquidAt(x, y);
+      const chunk = this.terrain.chunks.statusAt(x, y);
       lines.push(
-        `aim ${this.aim.x},${this.aim.y} tile ${this.world.getTile(this.aim.x, this.aim.y)}` +
-          ` liquid ${cell.type}:${cell.amount}` +
+        `cursor ${x},${y} tile ${this.world.getTile(x, y)} wall ${this.world.getWall(x, y)} ` +
+          `sky ${this.world.skyDepth[idx] ?? 0} block ${this.world.blockLight[idx] ?? 0} ` +
+          `liquid ${cell.type}:${cell.amount} dirty ${this.world.isTileDirty(idx) ? 1 : 0}/${this.world.isLiquidDirty(idx) ? 1 : 0} ` +
+          `chunk ${chunk.cached ? 'cached' : 'new'}${chunk.dirty ? ' dirty' : ''}` +
           (this.interaction.mining
             ? ` mining ${(this.interaction.miningProgress * 100).toFixed(0)}%`
             : ''),
       );
+      const entities = this.entitiesAt(x, y);
+      if (entities.length > 0) lines.push(`cursor entities: ${entities.join(', ')}`);
     }
     lines.push(`inventory ${this.usedSlots()}/${this.inventory.size} slots used`);
     const stats = this.terrainStats;
@@ -746,7 +755,35 @@ export class Game {
         `tiles ${stats.drawnTiles}/${stats.visibleTileCount}  chunks ${stats.chunksDrawn}/${stats.chunksVisible}  rebuilt ${stats.chunksRebuilt}`,
       );
     }
-    lines.push(`fixed step ${(FRAME.fixedDt * 1000).toFixed(3)} ms`);
+    lines.push(
+      `tick ${Math.round(this.elapsed / FRAME.fixedDt)}  fixed step ${(FRAME.fixedDt * 1000).toFixed(3)} ms`,
+    );
+  }
+
+  /** Entities overlapping a tile, formatted for the inspector. */
+  private entitiesAt(x: number, y: number): string[] {
+    const out: string[] = [];
+    for (const enemy of this.enemies) {
+      if (enemy.alive && Math.floor(enemy.centreX) === x && Math.floor(enemy.centreY) === y) {
+        out.push(`${enemy.def.name} hp${enemy.hp.toFixed(0)}`);
+      }
+    }
+    for (const passive of this.passives.rabbits) {
+      if (passive.alive && Math.floor(passive.centreX) === x && Math.floor(passive.centreY) === y) {
+        out.push(`${passive.def.name} hp${passive.hp.toFixed(0)}`);
+      }
+    }
+    for (const drop of this.pickups.all) {
+      if (Math.floor(drop.centreX) === x && Math.floor(drop.centreY) === y) {
+        out.push(`${nameOf(drop.item)} x${drop.count}`);
+      }
+    }
+    for (const projectile of this.projectiles.all) {
+      if (Math.floor(projectile.centreX) === x && Math.floor(projectile.centreY) === y) {
+        out.push(`${projectile.owner} arrow ${projectile.damage}`);
+      }
+    }
+    return out;
   }
 
   private heldSummary(): string {

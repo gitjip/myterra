@@ -374,7 +374,7 @@
 - 熔炉界面：输入/输出/燃料槽 + 进度条。
 - 箱子：20 格，跨世界持久。
 - 创造物品面板：分组列表 + 搜索，一键给满堆叠。
-- 设置：Render Distance、Simulation Distance、Liquid Updates/Frame、Sand Updates/Frame、Light Nodes/Frame、Resolution Scale、UI Scale、按键重映射表、Show FPS/Overlay。
+- 设置：Render Distance、Simulation Distance、Liquid Updates/Frame、Sand Updates/Frame、Light Nodes/Frame、UI Scale（1×/2×/3×）、按键重映射表、Show FPS/Overlay。
 - 暂停菜单：Resume / Settings / Save & Exit。
 - 死亡界面：Respawn / Exit to Menu。
 - 设置界面：`lives`、`hunger`、`breath` 不在设置里，但有 Dev 调试项（debug 面板）。
@@ -574,6 +574,15 @@ Sections: 每段 = u8 tag + u32 byteLength + payload
     - **世界边界光照**：光照只作用于可达范围（`light.ts` 的 BFS/列扫描/增量全量重算都以可达边界为界，`lightOverlay` 同样裁剪），缓冲区不再被点亮，消除左右边界的发亮缝隙。出生点改为从世界中心向外寻找。
     - **光照健壮性**：`LightSystem.version` 随光照数组变化自增并进入叠层缓存键（液体变化不再导致光照过期）；`runSkyRemove`/`runBlockRemove` 纳入帧预算，超预算时推迟到下一帧；空闲帧不再清零 `statNodes`。
     - **输入与 UI**：`tileAtMouse` 用 `canvas.width / clientWidth`（含分辨率缩放）换算，修复缩放≠1 时的瞄准偏移；创造面板发放物品优先进入当前快捷栏槽位，创造新世界不再发放生存起始包；`Shell.startGame` 先释放旧 `Game`；`InventoryPanel.bind` 换绑时归还光标堆叠。
+15. **UI 与调试整改（2026-10-09，实施第一批）**：
+    - **样式集中**：新增 `src/ui/styles.css`（CSS 变量 + 组件类），全部 UI 与 F3 叠层不再内联样式，仅保留动态状态。
+    - **固定逻辑分辨率**：canvas 内部固定 **960×540**，CSS 按窗口取整数倍放大；**删除 `resolutionScale` 与 `devicePixelRatio`**（取代第 377/1142/1144 行的 Resolution Scale 规格），鼠标拾取用 `canvas.width/clientWidth` 换算。
+    - **UI 缩放档位化**：`uiScale` 改为离散 **1×/2×/3×**（`RENDER.uiScaleSteps`），经 `--ui-scale` CSS 变量驱动，取代连续滑杆与 `uiRoot.style.zoom`。
+    - **布局稳定化**：设置与创造面板顶部锚定、背包/熔炉固定顶部、面板定宽、内容内部滚动，窗口/内容变化不再漂移。
+    - **环境分离**：`src/dev/env.ts` 的 `IS_DEV`（`vite` DEV 或 `?dev=1`）；dev 代码走独立动态 chunk，ship 产物 tree-shake。
+    - **Dev Console**：反引号开关，命令注册表 + 历史 + Tab 补全；`Game.devBridge()` 暴露传送/时间/物品/敌人生成/能力/光照/chunk/存档等操作。
+    - **F3 Inspector**：光标格全字段（tile/wall/sky/block/liquid/dirty/chunk 状态）、光标实体、玩家完整状态、tick；沿用 5 Hz 节流、按需读取。
+    - **后续批次（未做）**：可视化层、时间控制/单步、可复现 URL、帧历史、像素皮肤。
 
 ## 20. 明确排除（v1 不做）
 
@@ -1338,5 +1347,5 @@ Medium 20 敌人 + 100 弹幕 ...
 | M10 战斗与敌人 | ✅ 已完成 | `feat(m10): add melee combat, enemies and spawning` | 2026-10-08 |
 | M11 生存闭环与被动生物 | ✅ 已完成 | `feat(m11): add death/respawn, food and passive rabbits` | 2026-10-08 |
 | M12 内容扩展 | ✅ 已完成 | 批次 A–D（内容/UI/分帧光照/校验），见提交历史 | 2026-10-09 |
-| M13 UI/设置/完整创造 | ✅ 已完成 | 暂停菜单/设置/创造面板/能力标志生效 + 代码审查修复，见提交历史 | 2026-10-09 |
+| M13 UI/设置/完整创造 | ✅ 已完成 | 暂停菜单/设置/创造面板/能力标志生效 + 代码审查修复 + UI/调试整改（勘误 #14/#15），见提交历史 | 2026-10-09 |
 | M14 发布 | ⬜ 未开始 | — | — |

@@ -110,6 +110,12 @@ export class ChunkRenderer {
     this.cache.clear();
   }
 
+  /** Cache status of the chunk containing a tile, for the F3 inspector. */
+  public statusAt(x: number, y: number): { cached: boolean; dirty: boolean } {
+    const entry = this.cache.get(`${this.chunkX(x)},${this.chunkY(y)}`);
+    return { cached: entry !== undefined, dirty: entry?.dirty ?? false };
+  }
+
   public dispose(): void {
     this.unsubscribe();
     this.clear();

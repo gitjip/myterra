@@ -1,6 +1,6 @@
 import { ItemId } from './items';
 
-export type CraftStation = 'hand' | 'workbench' | 'furnace';
+export type CraftStation = 'hand' | 'workbench' | 'furnace' | 'anvil';
 
 export interface Ingredient {
   readonly item: ItemId;
@@ -94,6 +94,32 @@ export const RECIPES: readonly Recipe[] = [
     [ItemId.Torch, 3],
   ]),
   r('chest', ItemId.Chest, 1, 'workbench', [[ItemId.Wood, 8]]),
+  r('anvil', ItemId.Anvil, 1, 'workbench', [[ItemId.IronIngot, 10]]),
+  r('bed', ItemId.Bed, 1, 'workbench', [
+    [ItemId.Wood, 15],
+    [ItemId.Silk, 8],
+  ]),
+
+  r('bow', ItemId.Bow, 1, 'workbench', [
+    [ItemId.Wood, 8],
+    [ItemId.Rope, 3],
+  ]),
+  r('arrow', ItemId.Arrow, 4, 'workbench', [
+    [ItemId.Wood, 1],
+    [ItemId.Stone, 1],
+  ]),
+  r('water-bucket', ItemId.WaterBucket, 1, 'workbench', [[ItemId.IronIngot, 3]]),
+  r('lava-bucket', ItemId.LavaBucket, 1, 'workbench', [[ItemId.IronIngot, 3]]),
+
+  r('wood-helmet', ItemId.WoodHelmet, 1, 'anvil', [[ItemId.Wood, 10]]),
+  r('wood-chestplate', ItemId.WoodChestplate, 1, 'anvil', [[ItemId.Wood, 15]]),
+  r('wood-leggings', ItemId.WoodLeggings, 1, 'anvil', [[ItemId.Wood, 12]]),
+  r('iron-helmet', ItemId.IronHelmet, 1, 'anvil', [[ItemId.IronIngot, 10]]),
+  r('iron-chestplate', ItemId.IronChestplate, 1, 'anvil', [[ItemId.IronIngot, 15]]),
+  r('iron-leggings', ItemId.IronLeggings, 1, 'anvil', [[ItemId.IronIngot, 12]]),
+  r('gold-helmet', ItemId.GoldHelmet, 1, 'anvil', [[ItemId.GoldIngot, 10]]),
+  r('gold-chestplate', ItemId.GoldChestplate, 1, 'anvil', [[ItemId.GoldIngot, 15]]),
+  r('gold-leggings', ItemId.GoldLeggings, 1, 'anvil', [[ItemId.GoldIngot, 12]]),
 
   r('iron-ingot', ItemId.IronIngot, 1, 'furnace', [[ItemId.IronOre, 1]], 3),
   r('gold-ingot', ItemId.GoldIngot, 1, 'furnace', [[ItemId.GoldOre, 1]], 3),

@@ -28,6 +28,8 @@ export enum TileId {
   JungleGrass = 25,
   Hardwood = 26,
   Vine = 27,
+  Anvil = 28,
+  Bed = 29,
 }
 
 /** Background wall ids. Walls never participate in collision or lighting. */
@@ -106,6 +108,8 @@ export const TILE_DEFINITIONS: Readonly<Partial<Record<TileId, TileDefinition>>>
   [TileId.JungleGrass]: tile(true, false, 0.5, 'shovel'),
   [TileId.Hardwood]: tile(true, false, 2.5, 'axe'),
   [TileId.Vine]: tile(false, true, 0.2, 'axe'),
+  [TileId.Anvil]: tile(true, false, 3, 'pickaxe', false, false, { w: 2, h: 1 }),
+  [TileId.Bed]: tile(true, false, 1, 'hammer', false, false, { w: 2, h: 1 }),
 };
 
 export function tileDefinition(tileId: TileId): TileDefinition {
@@ -170,6 +174,10 @@ export function tileIdFromByte(value: number): TileId {
       return TileId.Hardwood;
     case 27:
       return TileId.Vine;
+    case 28:
+      return TileId.Anvil;
+    case 29:
+      return TileId.Bed;
     default:
       return TileId.Air;
   }

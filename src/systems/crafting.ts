@@ -2,13 +2,19 @@ import { RECIPES } from '../data/recipes';
 import type { Recipe } from '../data/recipes';
 import type { Inventory } from './inventory';
 
+export interface CraftStations {
+  readonly workbench: boolean;
+  readonly anvil: boolean;
+}
+
 /**
  * Shape-agnostic crafting: a recipe is just a multiset of ingredients. The
  * station only gates which recipes are listed; grid arrangement is irrelevant.
  */
-export function recipeAvailable(recipe: Recipe, hasWorkbench: boolean): boolean {
+export function recipeAvailable(recipe: Recipe, stations: CraftStations): boolean {
   if (recipe.station === 'furnace') return false;
-  if (recipe.station === 'workbench') return hasWorkbench;
+  if (recipe.station === 'workbench') return stations.workbench;
+  if (recipe.station === 'anvil') return stations.anvil;
   return true;
 }
 
@@ -25,6 +31,6 @@ export function craft(recipe: Recipe, inventory: Inventory): boolean {
 }
 
 /** Recipes the UI should list given the stations in reach. */
-export function listRecipes(hasWorkbench: boolean): Recipe[] {
-  return RECIPES.filter((recipe) => recipeAvailable(recipe, hasWorkbench));
+export function listRecipes(stations: CraftStations): Recipe[] {
+  return RECIPES.filter((recipe) => recipeAvailable(recipe, stations));
 }

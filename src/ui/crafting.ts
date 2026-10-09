@@ -1,6 +1,7 @@
 import { itemDefinition } from '../data/items';
 import type { Recipe } from '../data/recipes';
 import { canCraft, listRecipes } from '../systems/crafting';
+import type { CraftStations } from '../systems/crafting';
 import type { Inventory } from '../systems/inventory';
 
 const PANEL: Partial<CSSStyleDeclaration> = {
@@ -62,14 +63,14 @@ export class CraftingPanel {
     this.set(!this.open);
   }
 
-  public update(inventory: Inventory, hasWorkbench: boolean): void {
+  public update(inventory: Inventory, stations: CraftStations): void {
     if (!this.open) return;
-    const signature = `${hasWorkbench ? 1 : 0}|${slotSignature(inventory)}`;
+    const signature = `${stations.workbench ? 1 : 0}${stations.anvil ? 1 : 0}|${slotSignature(inventory)}`;
     if (signature === this.signature) return;
     this.signature = signature;
 
     this.body.textContent = '';
-    for (const recipe of listRecipes(hasWorkbench)) {
+    for (const recipe of listRecipes(stations)) {
       const row = document.createElement('div');
       Object.assign(row.style, {
         display: 'flex',

@@ -46,9 +46,27 @@ export enum ItemId {
   Mud = 41,
   Hardwood = 42,
   Vine = 43,
+  Bow = 44,
+  Arrow = 45,
+  WoodHelmet = 46,
+  WoodChestplate = 47,
+  WoodLeggings = 48,
+  IronHelmet = 49,
+  IronChestplate = 50,
+  IronLeggings = 51,
+  GoldHelmet = 52,
+  GoldChestplate = 53,
+  GoldLeggings = 54,
+  WaterBucket = 55,
+  LavaBucket = 56,
+  Obsidian = 57,
+  Anvil = 58,
+  Bed = 59,
 }
 
-export type StationType = 'workbench' | 'furnace' | 'chest';
+export type StationType = 'workbench' | 'anvil' | 'furnace' | 'chest' | 'bed';
+
+export type ArmorSlot = 'helmet' | 'chest' | 'legs';
 
 export interface Footprint {
   readonly w: number;
@@ -78,6 +96,15 @@ export interface ItemDefinition {
   readonly food: FoodValue | null;
   /** Melee damage; 0 for non-weapons. */
   readonly weaponDamage: number;
+  /** Bows: fire arrows from the ammo slot while held. */
+  readonly isBow: boolean;
+  /** Ammunition (arrows). */
+  readonly isAmmo: boolean;
+  /** Liquid containers. */
+  readonly isBucket: boolean;
+  readonly armorSlot: ArmorSlot | null;
+  /** Armor damage-reduction points (percentage points of the set total). */
+  readonly armorReduction: number;
 }
 
 const UNIT: Footprint = { w: 1, h: 1 };
@@ -91,6 +118,11 @@ const BASE: Omit<ItemDefinition, 'name' | 'stackMax' | 'tile'> = {
   fuelValue: 0,
   food: null,
   weaponDamage: 0,
+  isBow: false,
+  isAmmo: false,
+  isBucket: false,
+  armorSlot: null,
+  armorReduction: 0,
 };
 
 function block(
@@ -107,6 +139,18 @@ function tool(name: string, toolClass: ToolClass, tier: number): ItemDefinition 
 
 function item(name: string, options: Partial<ItemDefinition> = {}): ItemDefinition {
   return { ...BASE, name, stackMax: 999, tile: null, ...options };
+}
+
+function armor(name: string, slot: ArmorSlot, reduction: number, tier: number): ItemDefinition {
+  return {
+    ...BASE,
+    name,
+    stackMax: 1,
+    tile: null,
+    armorSlot: slot,
+    armorReduction: reduction,
+    tier,
+  };
 }
 
 export const ITEM_DEFINITIONS: Readonly<Record<ItemId, ItemDefinition>> = {
@@ -172,6 +216,33 @@ export const ITEM_DEFINITIONS: Readonly<Record<ItemId, ItemDefinition>> = {
   [ItemId.Mud]: block('Mud', TileId.Mud),
   [ItemId.Hardwood]: block('Hardwood', TileId.Hardwood, { fuelValue: 12 }),
   [ItemId.Vine]: block('Vine', TileId.Vine),
+
+  [ItemId.Bow]: item('Bow', { stackMax: 1, isBow: true, tier: 1 }),
+  [ItemId.Arrow]: item('Arrow', { stackMax: 200, isAmmo: true }),
+
+  [ItemId.WoodHelmet]: armor('Wood Helmet', 'helmet', 9, 1),
+  [ItemId.WoodChestplate]: armor('Wood Chestplate', 'chest', 8, 1),
+  [ItemId.WoodLeggings]: armor('Wood Leggings', 'legs', 8, 1),
+  [ItemId.IronHelmet]: armor('Iron Helmet', 'helmet', 14, 2),
+  [ItemId.IronChestplate]: armor('Iron Chestplate', 'chest', 13, 2),
+  [ItemId.IronLeggings]: armor('Iron Leggings', 'legs', 13, 2),
+  [ItemId.GoldHelmet]: armor('Gold Helmet', 'helmet', 19, 3),
+  [ItemId.GoldChestplate]: armor('Gold Chestplate', 'chest', 18, 3),
+  [ItemId.GoldLeggings]: armor('Gold Leggings', 'legs', 18, 3),
+
+  [ItemId.WaterBucket]: item('Water Bucket', { stackMax: 1, isBucket: true }),
+  [ItemId.LavaBucket]: item('Lava Bucket', { stackMax: 1, isBucket: true }),
+  [ItemId.Obsidian]: item('Obsidian'),
+  [ItemId.Anvil]: block('Anvil', TileId.Anvil, {
+    stackMax: 99,
+    station: 'anvil',
+    footprint: { w: 2, h: 1 },
+  }),
+  [ItemId.Bed]: block('Bed', TileId.Bed, {
+    stackMax: 99,
+    station: 'bed',
+    footprint: { w: 2, h: 1 },
+  }),
 };
 
 export function itemDefinition(item: ItemId): ItemDefinition {
@@ -194,13 +265,33 @@ export function stationOfTile(tile: TileId): StationType | null {
   switch (tile) {
     case TileId.Workbench:
       return 'workbench';
+    case TileId.Anvil:
+      return 'anvil';
     case TileId.Furnace:
       return 'furnace';
     case TileId.Chest:
       return 'chest';
+    case TileId.Bed:
+      return 'bed';
     default:
       return null;
   }
+}
+
+export interface BonusDrop {
+  readonly item: ItemId;
+  readonly chance: number;
+  readonly min: number;
+  readonly max: number;
+}
+
+/** Extra rolls on top of the primary tile drop (e.g. grass sometimes gives rope). */
+export const TILE_BONUS_DROPS: Readonly<Partial<Record<TileId, readonly BonusDrop[]>>> = {
+  [TileId.Grass]: [{ item: ItemId.Rope, chance: 0.1, min: 1, max: 1 }],
+};
+
+export function bonusDropsForTile(tileId: TileId): readonly BonusDrop[] {
+  return TILE_BONUS_DROPS[tileId] ?? [];
 }
 
 /** Item produced by mining a tile, or null when it drops nothing. */
@@ -248,6 +339,12 @@ export function dropForTile(tileId: TileId): ItemId | null {
       return ItemId.Hardwood;
     case TileId.Vine:
       return ItemId.Vine;
+    case TileId.Obsidian:
+      return ItemId.Obsidian;
+    case TileId.Anvil:
+      return ItemId.Anvil;
+    case TileId.Bed:
+      return ItemId.Bed;
     case TileId.DoorTopClosed:
     case TileId.DoorTopOpen:
     case TileId.DoorBottomClosed:

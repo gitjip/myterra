@@ -16,11 +16,14 @@ describe('crafting', () => {
     expect(inventory.countOf(ItemId.Wood)).toBe(2);
   });
 
-  it('gates workbench recipes behind a nearby workbench', () => {
-    const handRecipes = listRecipes(false);
-    const benchRecipes = listRecipes(true);
-    expect(handRecipes.some((r) => r.output === ItemId.WoodPickaxe)).toBe(false);
-    expect(benchRecipes.some((r) => r.output === ItemId.WoodPickaxe)).toBe(true);
+  it('gates recipes behind the nearby stations', () => {
+    const hand = listRecipes({ workbench: false, anvil: false });
+    const bench = listRecipes({ workbench: true, anvil: false });
+    const benchAndAnvil = listRecipes({ workbench: true, anvil: true });
+    expect(hand.some((r) => r.output === ItemId.WoodPickaxe)).toBe(false);
+    expect(bench.some((r) => r.output === ItemId.WoodPickaxe)).toBe(true);
+    expect(bench.some((r) => r.output === ItemId.IronHelmet)).toBe(false);
+    expect(benchAndAnvil.some((r) => r.output === ItemId.IronHelmet)).toBe(true);
   });
 
   it('does not consume materials when they are missing', () => {

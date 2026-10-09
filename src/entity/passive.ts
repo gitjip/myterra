@@ -11,6 +11,13 @@ export enum PassiveKind {
   Rabbit = 'rabbit',
 }
 
+export interface PassiveDrop {
+  readonly item: ItemId;
+  readonly chance: number;
+  readonly min: number;
+  readonly max: number;
+}
+
 export interface PassiveDefinition {
   readonly name: string;
   readonly hp: number;
@@ -19,7 +26,7 @@ export interface PassiveDefinition {
   readonly wanderSpeed: number;
   readonly fleeSpeed: number;
   readonly color: string;
-  readonly drop: ItemId;
+  readonly drops: readonly PassiveDrop[];
 }
 
 export const PASSIVES: Readonly<Record<PassiveKind, PassiveDefinition>> = {
@@ -31,7 +38,10 @@ export const PASSIVES: Readonly<Record<PassiveKind, PassiveDefinition>> = {
     wanderSpeed: 1.5,
     fleeSpeed: 7,
     color: '#d8d2c4',
-    drop: ItemId.RawMeat,
+    drops: [
+      { item: ItemId.RawMeat, chance: 0.5, min: 1, max: 1 },
+      { item: ItemId.Leather, chance: 0.5, min: 1, max: 1 },
+    ],
   },
 };
 

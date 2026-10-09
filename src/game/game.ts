@@ -3,7 +3,7 @@ import type { RenderInfo } from '../core/loop';
 import { rectsOverlap, sign } from '../core/math';
 import { Profiler } from '../core/perf';
 import { Rng } from '../core/rng';
-import { ItemId, itemDefinition, stationOfTile } from '../data/items';
+import { ItemId, bonusDropsForTile, itemDefinition, stationOfTile } from '../data/items';
 import { TileId } from '../data/tiles';
 import { DEBUG, FRAME, FRAME_BUDGET_MS, INTERACTION, LIGHT, PLAYER, TILE } from '../data/tuning';
 import { Player } from '../entity/player';
@@ -390,6 +390,17 @@ export class Game {
           -2,
         );
       }
+      for (const bonus of bonusDropsForTile(breakEvent.tile)) {
+        if (!this.rng.chance(bonus.chance)) continue;
+        this.pickups.spawn(
+          bonus.item,
+          this.rng.nextIntRange(bonus.min, bonus.max + 1),
+          breakEvent.x + 0.35,
+          breakEvent.y + 0.2,
+          this.rng.nextRange(-1.5, 1.5),
+          -2,
+        );
+      }
     }
   }
 
@@ -435,7 +446,10 @@ export class Game {
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
     this.hud.update(this.player, this.inventory);
-    this.craftingPanel?.update(this.inventory, this.hasWorkbench());
+    this.craftingPanel?.update(this.inventory, {
+      workbench: this.hasStation(TileId.Workbench),
+      anvil: this.hasStation(TileId.Anvil),
+    });
     if (this.furnacePanel?.open && this.activeFurnace) {
       this.furnacePanel.update(this.activeFurnace, this.inventory);
     }
@@ -539,6 +553,13 @@ export class Game {
     this.inventory.addItem(ItemId.IronIngot, 10);
     this.inventory.addItem(ItemId.Coal, 20);
     this.inventory.addItem(ItemId.RawMeat, 3);
+    this.inventory.addItem(ItemId.Bow, 1);
+    this.inventory.addItem(ItemId.Arrow, 50);
+    this.inventory.addItem(ItemId.Anvil, 1);
+    this.inventory.addItem(ItemId.Bed, 1);
+    this.inventory.addItem(ItemId.Silk, 16);
+    this.inventory.addItem(ItemId.Rope, 16);
+    this.inventory.addItem(ItemId.GoldIngot, 10);
     this.inventory.select(0);
   }
 
@@ -606,7 +627,7 @@ export class Game {
   }
 
   private openStation(station: string, x: number, y: number): boolean {
-    if (station === 'workbench') {
+    if (station === 'workbench' || station === 'anvil') {
       this.furnacePanel?.set(false);
       this.activeFurnace = null;
       this.craftingPanel?.set(true);
@@ -624,7 +645,8 @@ export class Game {
       this.furnacePanel?.set(true);
       return true;
     }
-    return false;
+    // Chest and bed panels arrive in a later M12 batch; consume the click.
+    return station === 'chest' || station === 'bed';
   }
 
   private furnaceKey(x: number, y: number): string {
@@ -665,14 +687,17 @@ export class Game {
   }
 
   private dropPassiveLoot(passive: Passive): void {
-    this.pickups.spawn(
-      passive.def.drop,
-      1,
-      passive.centreX - 0.2,
-      passive.body.y,
-      this.rng.nextRange(-1.5, 1.5),
-      -2,
-    );
+    for (const drop of passive.def.drops) {
+      if (!this.rng.chance(drop.chance)) continue;
+      this.pickups.spawn(
+        drop.item,
+        this.rng.nextIntRange(drop.min, drop.max + 1),
+        passive.centreX - 0.2,
+        passive.body.y,
+        this.rng.nextRange(-1.5, 1.5),
+        -2,
+      );
+    }
   }
 
   private dropEnemyLoot(enemy: Enemy): void {
@@ -690,7 +715,7 @@ export class Game {
     }
   }
 
-  private hasWorkbench(): boolean {
+  private hasStation(tile: TileId): boolean {
     const body = this.player.body;
     const reach = INTERACTION.reach;
     const minX = Math.floor(body.x) - reach;
@@ -699,7 +724,7 @@ export class Game {
     const maxY = Math.floor(body.y + body.h) + reach;
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
-        if (this.world.getTile(x, y) === TileId.Workbench) return true;
+        if (this.world.getTile(x, y) === tile) return true;
       }
     }
     return false;

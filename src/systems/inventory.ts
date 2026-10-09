@@ -93,6 +93,14 @@ export class Inventory {
     return count > 0 ? this.addItem(item, count) : 0;
   }
 
+  /** Empties every slot. */
+  public clear(): void {
+    for (let i = 0; i < this.slots.length; i++) {
+      if (this.slots[i]) this.emitter.emit('change', i);
+      this.slots[i] = null;
+    }
+  }
+
   /** Adds items, filling existing stacks first. Returns the leftover that did not fit. */
   public addItem(item: ItemId, count = 1): number {
     if (count <= 0) return 0;

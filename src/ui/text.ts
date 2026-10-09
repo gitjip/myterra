@@ -35,4 +35,9 @@ export const TEXT = {
   inventory: { title: 'Inventory', equipment: 'Equipment', chest: 'Chest' },
   creative: { title: 'Creative Items', search: 'Search' },
   death: { title: 'YOU DIED', respawn: 'Respawn', exit: 'Exit to Menu' },
+  dev: {
+    consoleHint: 'Dev console. Type "help" for commands.',
+    unknown: 'unknown command',
+    noGame: 'no running world',
+  },
 } as const;

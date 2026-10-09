@@ -224,6 +224,9 @@ export class Shell {
     this.game.onExitToMenu = () => {
       void this.exitToMenu();
     };
+    this.game.onRequestSave = () => {
+      void this.saveCurrentWorld();
+    };
     this.meta = meta;
     this.game.start();
     this.startAutosave();

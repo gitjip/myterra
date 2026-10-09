@@ -1,10 +1,12 @@
 import { GameLoop } from '../core/loop';
 import type { RenderInfo } from '../core/loop';
-import { rectsOverlap, sign } from '../core/math';
+import { clamp, rectsOverlap, sign } from '../core/math';
 import { Profiler } from '../core/perf';
 import { Rng } from '../core/rng';
 import { ItemId, bonusDropsForTile, itemDefinition, stationOfTile } from '../data/items';
 import { TileId } from '../data/tiles';
+import { ENEMIES } from '../data/enemies';
+import type { DevBridge } from '../dev/bridge';
 import {
   DEBUG,
   FRAME,
@@ -18,7 +20,7 @@ import {
 } from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
-import type { Enemy } from '../entity/enemy';
+import { Enemy } from '../entity/enemy';
 import type { Passive } from '../entity/passive';
 import { PassiveManager } from '../entity/passive';
 import { ProjectileManager } from '../entity/projectile';
@@ -96,6 +98,10 @@ export class Game {
   public readonly input: InputManager;
   /** Set by the shell so the death screen can return to the menu. */
   public onExitToMenu: () => void = () => {};
+  /** Set by the shell so the dev console can force a save. */
+  public onRequestSave: () => void = () => {};
+  /** Resolved world seed. */
+  public readonly seed: number;
   public timeOfDay: number = LIGHT.startTimeOfDay;
   public dayCount: number = 0;
 
@@ -155,7 +161,8 @@ export class Game {
     this.world = world;
     this.uiRoot = uiRoot;
     this.settings = loadSettings(localSettingsStore());
-    this.rng = new Rng(options.seed ?? (Math.random() * 0x1_0000_0000) >>> 0);
+    this.seed = options.seed ?? (Math.random() * 0x1_0000_0000) >>> 0;
+    this.rng = new Rng(this.seed);
     this.spawnSystem = new SpawnSystem(this.rng);
     this.passives = new PassiveManager(this.rng);
     const spawn = findSpawn(world);
@@ -281,6 +288,82 @@ export class Game {
   public start(): void {
     this.fpsWindowStart = performance.now();
     this.loop.start();
+  }
+
+  /** Narrow handle the dev console drives the game through. */
+  public devBridge(): DevBridge {
+    return {
+      teleport: (x, y) => {
+        this.player.body.x = x;
+        this.player.body.y = y;
+        this.player.body.vx = 0;
+        this.player.body.vy = 0;
+      },
+      teleportToAim: () => {
+        const aim = this.aim;
+        if (!aim) return false;
+        this.player.body.x = aim.x;
+        this.player.body.y = aim.y;
+        this.player.body.vx = 0;
+        this.player.body.vy = 0;
+        return true;
+      },
+      teleportToSpawn: () => {
+        this.respawnPlayer();
+      },
+      setTimeOfDay: (timeOfDay) => {
+        this.timeOfDay = clamp(timeOfDay, 0, 1);
+        this.light.dayFactor = dayFactorFor(this.timeOfDay);
+      },
+      advanceDays: (days) => {
+        this.dayCount += days;
+      },
+      give: (item, count) => this.inventory.addToHotbar(item, count),
+      clearInventory: () => { this.inventory.clear(); },
+      spawnEnemy: (kind, count) => {
+        const aim = this.aim;
+        const baseX = aim ? aim.x : Math.round(this.player.centreX);
+        const baseY = aim ? aim.y : Math.round(this.player.centreY);
+        let spawned = 0;
+        for (let i = 0; i < count; i++) {
+          const x = baseX + (i % 3) - 1;
+          this.enemies.push(new Enemy(kind, x, baseY - ENEMIES[kind].height));
+          spawned++;
+        }
+        return spawned;
+      },
+      clearEnemies: () => {
+        const removed = this.enemies.length;
+        this.enemies.length = 0;
+        return removed;
+      },
+      clearDrops: () => {
+        const removed = this.pickups.count;
+        this.pickups.clear();
+        return removed;
+      },
+      setGod: (on) => {
+        this.player.invulnerable = on;
+      },
+      setFlight: (on) => {
+        this.player.canFly = on;
+      },
+      killPlayer: () => {
+        this.player.health = 0;
+        this.player.dead = true;
+      },
+      healPlayer: () => {
+        this.respawnPlayer();
+      },
+      fullRelight: () => { this.light.fullRelight(); },
+      rebuildLiquid: () => { this.liquid.startRebuild(); },
+      rebuildChunks: () => { this.terrain.chunks.clear(); },
+      saveNow: () => { this.onRequestSave(); },
+      seed: () => this.seed,
+      modeName: () => this.mode.name,
+      aim: () => (this.aim ? { x: this.aim.x, y: this.aim.y } : null),
+      resetProfiler: () => { this.profiler.clearWindow(); },
+    };
   }
 
   public dispose(): void {

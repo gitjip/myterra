@@ -604,3 +604,53 @@
   border-color: #7a3b3b;
   color: #f4d7d7;
 }
+
+/* --- dev console -------------------------------------------------------- */
+
+.mt-console {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 45vh;
+  display: none;
+  flex-direction: column;
+  background: rgba(4, 6, 12, 0.94);
+  border-top: calc(1px * var(--ui-scale)) solid var(--mt-border);
+  color: var(--mt-fg);
+  font-family: var(--mt-font);
+  font-size: calc(13px * var(--ui-scale));
+  z-index: var(--mt-z-settings);
+}
+
+.mt-console__log {
+  flex: 1;
+  overflow-y: auto;
+  padding: calc(6px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.mt-console__line {
+  display: flex;
+  gap: calc(8px * var(--ui-scale));
+  padding: calc(2px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  border-top: calc(1px * var(--ui-scale)) solid var(--mt-border);
+}
+
+.mt-console__prompt {
+  color: var(--mt-accent);
+}
+
+.mt-console__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--mt-fg);
+  font: inherit;
+}
+
+.mt-console__error {
+  color: var(--mt-danger);
+}

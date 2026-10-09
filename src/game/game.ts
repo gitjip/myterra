@@ -41,11 +41,16 @@ import { craft } from '../systems/crafting';
 import { CombatSystem } from '../systems/combat';
 import { Furnace } from '../systems/furnace';
 import { SpawnSystem } from '../systems/spawn';
+import { loadSettings, saveSettings } from '../systems/settings';
+import type { Settings } from '../systems/settings';
 import { CraftingPanel } from '../ui/crafting';
+import { CreativePanel } from '../ui/creativePanel';
 import { DeathPanel } from '../ui/death';
 import { FurnacePanel } from '../ui/furnace';
 import { Hud } from '../ui/hud';
 import { InventoryPanel } from '../ui/inventory';
+import { PausePanel } from '../ui/pause';
+import { SettingsPanel } from '../ui/settings';
 import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
 import { LightSystem } from '../world/light';
 import { LiquidSystem } from '../world/liquid';
@@ -116,6 +121,12 @@ export class Game {
   private furnacePanel: FurnacePanel | undefined;
   private inventoryPanel: InventoryPanel | undefined;
   private deathPanel: DeathPanel | undefined;
+  private pausePanel: PausePanel | undefined;
+  private settingsPanel: SettingsPanel | undefined;
+  private creativePanel: CreativePanel | undefined;
+  public settings: Settings;
+  private paused = false;
+  private readonly uiRoot: HTMLElement;
   private uiState: 'none' | 'inventory' | 'workbench' | 'anvil' | 'furnace' | 'chest' = 'none';
   private activeChest: InventorySlot[] | null = null;
   private spawnX = 0;
@@ -144,6 +155,8 @@ export class Game {
     this.canvas = canvas;
     this.ctx = ctx;
     this.world = world;
+    this.uiRoot = uiRoot;
+    this.settings = loadSettings(localSettingsStore());
     this.rng = new Rng(options.seed ?? (Math.random() * 0x1_0000_0000) >>> 0);
     this.spawnSystem = new SpawnSystem(this.rng);
     this.passives = new PassiveManager(this.rng);
@@ -166,7 +179,7 @@ export class Game {
     this.inventoryPanel = new InventoryPanel(uiRoot);
     this.inventoryPanel.bind(this.inventory, null);
     this.craftingPanel.onCraft = (recipe) => {
-      craft(recipe, this.inventory);
+      craft(recipe, this.inventory, this.mode.flags.skipCrafting);
     };
     this.furnacePanel.onInsert = (item) => {
       this.insertFurnace(item);
@@ -180,6 +193,38 @@ export class Game {
     };
     this.deathPanel.onExit = () => {
       this.onExitToMenu();
+    };
+
+    this.pausePanel = new PausePanel(uiRoot);
+    this.settingsPanel = new SettingsPanel(uiRoot);
+    this.creativePanel = new CreativePanel(uiRoot);
+    this.pausePanel.onResume = () => {
+      this.setPaused(false);
+    };
+    this.pausePanel.onSettings = () => {
+      this.openSettings();
+    };
+    this.pausePanel.onSaveExit = () => {
+      this.onExitToMenu();
+    };
+    this.settingsPanel.onClose = () => {
+      this.settingsPanel?.set(false);
+    };
+    this.settingsPanel.onSettingsChange = (settings) => {
+      this.settings = settings;
+      saveSettings(settings, localSettingsStore());
+      this.applySettings();
+    };
+    this.settingsPanel.onModeChange = (name) => {
+      this.setMode(name);
+      this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
+    };
+    this.settingsPanel.onRebind = (action, code) => {
+      this.input.remap(action, code);
+      this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
+    };
+    this.creativePanel.onPick = (item) => {
+      this.inventory.addItem(item, itemDefinition(item).stackMax);
     };
 
     this.timeOfDay = options.saved?.timeOfDay ?? LIGHT.startTimeOfDay;
@@ -230,6 +275,7 @@ export class Game {
     });
     this.resizeObserver.observe(canvas);
     this.bindInput();
+    this.applySettings();
     this.resize();
   }
 
@@ -251,11 +297,20 @@ export class Game {
     this.furnacePanel?.dispose();
     this.inventoryPanel?.dispose();
     this.deathPanel?.dispose();
+    this.pausePanel?.dispose();
+    this.settingsPanel?.dispose();
+    this.creativePanel?.dispose();
   }
 
   /** True while a dialog is open, so Escape closes it before leaving the game. */
   public isUiOpen(): boolean {
-    return this.uiState !== 'none' || (this.deathPanel?.open ?? false);
+    return (
+      this.uiState !== 'none' ||
+      this.paused ||
+      (this.deathPanel?.open ?? false) ||
+      (this.settingsPanel?.open ?? false) ||
+      (this.creativePanel?.open ?? false)
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -263,6 +318,8 @@ export class Game {
   // -------------------------------------------------------------------------
 
   private fixedUpdate(dt: number): void {
+    // The creative panel and the pause menu freeze simulation; settings do not.
+    if (this.paused || (this.creativePanel?.open ?? false)) return;
     this.camera.beginStep();
     const input = this.input.state;
     const flags = this.mode.flags;
@@ -281,9 +338,16 @@ export class Game {
         dt,
       );
       this.combat.update(dt);
+      const hostile = this.mode.flags.enemiesHostile;
       for (const enemy of this.enemies) {
-        enemy.update(this.world, this.player.centreX, this.player.centreY, dt);
-        if (this.mode.flags.enemiesHostile) {
+        // Non-hostile enemies idle in place rather than chasing.
+        enemy.update(
+          this.world,
+          hostile ? this.player.centreX : enemy.centreX,
+          hostile ? this.player.centreY : enemy.centreY,
+          dt,
+        );
+        if (hostile) {
           const shot = enemy.consumeShot();
           if (shot) {
             this.projectiles.spawn(
@@ -297,8 +361,8 @@ export class Game {
           }
         }
         if (
+          hostile &&
           !this.player.dead &&
-          this.mode.flags.enemiesHostile &&
           !this.mode.flags.invulnerable &&
           this.player.invulnTimer <= 0 &&
           rectsOverlap(enemy.body, this.player.body)
@@ -343,16 +407,16 @@ export class Game {
       for (const furnace of this.furnaces.values()) furnace.update(dt);
     });
 
-    this.profiler.measure('light', FRAME_BUDGET_MS.light, () => {
-      this.light.update(FRAME_BUDGET_MS.light);
+    this.profiler.measure('light', this.settings.lightBudgetMs, () => {
+      this.light.update(this.settings.lightBudgetMs);
     });
 
-    this.profiler.measure('liquid', FRAME_BUDGET_MS.liquid, () => {
-      this.liquid.update(FRAME_BUDGET_MS.liquid);
+    this.profiler.measure('liquid', this.settings.liquidBudgetMs, () => {
+      this.liquid.update(this.settings.liquidBudgetMs);
     });
 
-    this.profiler.measure('sand', FRAME_BUDGET_MS.sand, () => {
-      this.sand.update(FRAME_BUDGET_MS.sand);
+    this.profiler.measure('sand', this.settings.sandBudgetMs, () => {
+      this.sand.update(this.settings.sandBudgetMs);
     });
 
     this.elapsed += dt;
@@ -716,6 +780,58 @@ export class Game {
     this.hud.setHotbarVisible(state === 'none');
   }
 
+  private applySettings(): void {
+    this.camera.setRenderRadius(this.settings.renderDistance);
+    const despawn = this.settings.simulationDistance + 64;
+    this.spawnSystem.simulateRadius = this.settings.simulationDistance;
+    this.spawnSystem.despawnRadius = despawn;
+    this.passives.simulateRadius = this.settings.simulationDistance;
+    this.passives.despawnRadius = despawn;
+    this.uiRoot.style.zoom = String(this.settings.uiScale);
+    this.overlay.toggle(this.settings.showOverlay);
+    this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
+    this.resize();
+  }
+
+  private setMode(name: ModeName): void {
+    this.mode.set(name);
+    this.player.canFly = this.mode.flags.canFly;
+    if (name !== 'creative') this.creativePanel?.set(false);
+    this.hud.showItemName(name === 'creative' ? 'Creative Mode' : 'Survival Mode');
+  }
+
+  private setPaused(paused: boolean): void {
+    this.paused = paused;
+    this.pausePanel?.set(paused);
+    if (paused) {
+      this.setUi('none');
+      this.settingsPanel?.set(false);
+      this.creativePanel?.set(false);
+    }
+  }
+
+  private openSettings(): void {
+    this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
+    this.settingsPanel?.set(true);
+  }
+
+  /** Escape routing: close dialogs first, otherwise toggle the pause menu. */
+  private onEscape(): void {
+    if (this.settingsPanel?.open) {
+      this.settingsPanel.set(false);
+      return;
+    }
+    if (this.creativePanel?.open) {
+      this.creativePanel.set(false);
+      return;
+    }
+    if (this.uiState !== 'none') {
+      this.setUi('none');
+      return;
+    }
+    this.setPaused(!this.paused);
+  }
+
   private openStation(station: string, x: number, y: number): boolean {
     if (station === 'workbench' || station === 'anvil') {
       this.setUi(station);
@@ -818,7 +934,7 @@ export class Game {
           if (!enemy.alive || !rectsOverlap(projectile.body, enemy.body)) continue;
           const killed = enemy.hit(projectile.damage, dir);
           this.damageNumbers.spawn(enemy.centreX, enemy.body.y, projectile.damage);
-          if (killed) this.dropEnemyLoot(enemy);
+          if (killed && this.mode.flags.enemiesHostile) this.dropEnemyLoot(enemy);
           hit = true;
           break;
         }
@@ -867,7 +983,7 @@ export class Game {
       const dir = Math.sign(enemy.centreX - this.player.centreX) || this.player.facing;
       const killed = enemy.hit(damage, dir);
       this.damageNumbers.spawn(enemy.centreX, enemy.body.y, damage);
-      if (killed) this.dropEnemyLoot(enemy);
+      if (killed && this.mode.flags.enemiesHostile) this.dropEnemyLoot(enemy);
     }
     for (const passive of this.passives.rabbits) {
       if (!passive.alive) continue;
@@ -925,8 +1041,9 @@ export class Game {
 
   private resize(): void {
     const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(this.canvas.clientWidth * dpr));
-    const height = Math.max(1, Math.round(this.canvas.clientHeight * dpr));
+    const scale = dpr * this.settings.resolutionScale;
+    const width = Math.max(1, Math.round(this.canvas.clientWidth * scale));
+    const height = Math.max(1, Math.round(this.canvas.clientHeight * scale));
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
@@ -938,7 +1055,9 @@ export class Game {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.code === 'F3') {
         event.preventDefault();
-        this.overlay.toggle();
+        const visible = this.overlay.toggle();
+        this.settings = { ...this.settings, showOverlay: visible };
+        saveSettings(this.settings, localSettingsStore());
         return;
       }
       if (event.code === 'Equal' || event.code === 'NumpadAdd') {
@@ -961,15 +1080,18 @@ export class Game {
         return;
       }
       if (event.code === 'Escape') {
-        if (this.uiState !== 'none') {
-          event.preventDefault();
-          this.setUi('none');
-        }
+        event.preventDefault();
+        this.onEscape();
         return;
       }
       if (event.code === 'KeyE') {
         event.preventDefault();
-        this.toggleInventory();
+        if (!this.paused) this.toggleInventory();
+        return;
+      }
+      if (event.code === 'KeyC') {
+        event.preventDefault();
+        if (this.mode.name === 'creative' && !this.paused) this.creativePanel?.toggle();
         return;
       }
       if (event.code === DEBUG.starveKey) {
@@ -1063,6 +1185,17 @@ function hotbarSlotFromCode(code: string): number | null {
     if (Number.isInteger(digit) && digit >= 0 && digit <= 9) return (digit + 9) % 10;
   }
   return null;
+}
+
+function localSettingsStore(): {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+} | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null;
+  }
 }
 
 function wrapIndex(value: number, length: number): number {

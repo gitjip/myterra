@@ -180,6 +180,9 @@ export class Passive {
 /** Spawns, moves and despawns passive creatures around the player. */
 export class PassiveManager {
   public readonly rabbits: Passive[] = [];
+  /** Runtime overrides, driven by the simulation-distance setting. */
+  public simulateRadius: number = ENTITY.simulateRadius;
+  public despawnRadius: number = ENTITY.despawnRadius;
   private timer = 6;
 
   public constructor(private readonly rng: Rng) {}
@@ -196,7 +199,7 @@ export class PassiveManager {
       if (!passive) continue;
       if (
         !passive.alive ||
-        chebyshev(passive.centreX, passive.centreY, playerX, playerY) > ENTITY.despawnRadius
+        chebyshev(passive.centreX, passive.centreY, playerX, playerY) > this.despawnRadius
       ) {
         this.rabbits.splice(i, 1);
         continue;
@@ -211,8 +214,7 @@ export class PassiveManager {
 
     for (let attempt = 0; attempt < ENTITY.spawnAttempts; attempt++) {
       const x =
-        Math.round(playerX) +
-        this.rng.nextIntRange(-ENTITY.simulateRadius, ENTITY.simulateRadius + 1);
+        Math.round(playerX) + this.rng.nextIntRange(-this.simulateRadius, this.simulateRadius + 1);
       const spot = this.findSpot(world, x, Math.round(playerY), dayFactor);
       if (spot === null) continue;
       this.rabbits.push(new Passive(spot.kind, x, spot.y, this.rng));

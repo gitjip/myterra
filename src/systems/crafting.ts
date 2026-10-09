@@ -22,10 +22,10 @@ export function canCraft(recipe: Recipe, inventory: Inventory): boolean {
   return recipe.inputs.every((input) => inventory.countOf(input.item) >= input.count);
 }
 
-/** Consumes the inputs and adds the output. Returns false when materials are missing. */
-export function craft(recipe: Recipe, inventory: Inventory): boolean {
-  if (!canCraft(recipe, inventory)) return false;
-  for (const input of recipe.inputs) inventory.removeItem(input.item, input.count);
+/** Consumes the inputs and adds the output. `free` skips consumption (creative). */
+export function craft(recipe: Recipe, inventory: Inventory, free = false): boolean {
+  if (!free && !canCraft(recipe, inventory)) return false;
+  if (!free) for (const input of recipe.inputs) inventory.removeItem(input.item, input.count);
   inventory.addItem(recipe.output, recipe.count);
   return true;
 }

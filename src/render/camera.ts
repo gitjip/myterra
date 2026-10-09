@@ -32,6 +32,8 @@ export class Camera {
   private lookY = 0;
   private lookTargetX = 0;
   private lookTargetY = 0;
+  /** Optional cap on how far chunks are drawn from the camera centre, tiles. */
+  private renderRadius = Number.POSITIVE_INFINITY;
 
   public constructor(world: World, zoom: number = RENDER.defaultZoom) {
     this.world = world;
@@ -55,6 +57,11 @@ export class Camera {
 
   public setRenderAlpha(alpha: number): void {
     this.renderAlpha = clamp01(alpha);
+  }
+
+  /** Limits rendering to a square of this many tiles around the camera centre. */
+  public setRenderRadius(tiles: number): void {
+    this.renderRadius = Number.isFinite(tiles) ? Math.max(1, tiles) : Number.POSITIVE_INFINITY;
   }
 
   private get renderCenterX(): number {
@@ -143,10 +150,18 @@ export class Camera {
     const top = this.top;
     const right = this.right;
     const bottom = this.bottom;
-    const minX = Math.max(this.world.xMin, Math.floor(left));
-    const maxX = Math.min(this.world.xMax, Math.ceil(right) - 1);
-    const minY = Math.max(this.world.yMin, Math.floor(top));
-    const maxY = Math.min(this.world.yMax, Math.ceil(bottom) - 1);
+    let minX = Math.max(this.world.xMin, Math.floor(left));
+    let maxX = Math.min(this.world.xMax, Math.ceil(right) - 1);
+    let minY = Math.max(this.world.yMin, Math.floor(top));
+    let maxY = Math.min(this.world.yMax, Math.ceil(bottom) - 1);
+    if (Number.isFinite(this.renderRadius)) {
+      const cx = this.renderCenterX;
+      const cy = this.renderCenterY;
+      minX = Math.max(minX, Math.floor(cx - this.renderRadius));
+      maxX = Math.min(maxX, Math.ceil(cx + this.renderRadius) - 1);
+      minY = Math.max(minY, Math.floor(cy - this.renderRadius));
+      maxY = Math.min(maxY, Math.ceil(cy + this.renderRadius) - 1);
+    }
     return {
       minX,
       maxX,

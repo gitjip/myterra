@@ -47,7 +47,6 @@ export class Shell {
       this.beginWorld(config);
     };
 
-    window.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('beforeunload', this.onBeforeUnload);
     this.create.hide();
@@ -56,7 +55,6 @@ export class Shell {
   }
 
   public dispose(): void {
-    window.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('beforeunload', this.onBeforeUnload);
     this.stopAutosave();
@@ -264,13 +262,6 @@ export class Shell {
     if (this.saveTimer) window.clearInterval(this.saveTimer);
     this.saveTimer = 0;
   }
-
-  private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.code === 'Escape' && this.game && !this.game.isUiOpen()) {
-      event.preventDefault();
-      void this.exitToMenu();
-    }
-  };
 
   private readonly onVisibility = (): void => {
     if (document.hidden && this.game) void this.saveCurrentWorld();

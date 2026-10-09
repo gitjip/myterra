@@ -45,6 +45,9 @@ export function findSpawnSpot(
 /** Spawns and despawns enemies around the player. */
 export class SpawnSystem {
   private timer = ENTITY.spawnIntervalSeconds;
+  /** Runtime overrides, driven by the simulation-distance setting. */
+  public simulateRadius: number = ENTITY.simulateRadius;
+  public despawnRadius: number = ENTITY.despawnRadius;
 
   public constructor(private readonly rng: Rng) {}
 
@@ -59,7 +62,7 @@ export class SpawnSystem {
     for (let i = enemies.length - 1; i >= 0; i--) {
       const enemy = enemies[i];
       if (!enemy) continue;
-      if (chebyshev(enemy.centreX, enemy.centreY, playerX, playerY) > ENTITY.despawnRadius) {
+      if (chebyshev(enemy.centreX, enemy.centreY, playerX, playerY) > this.despawnRadius) {
         enemies.splice(i, 1);
       }
     }
@@ -71,8 +74,7 @@ export class SpawnSystem {
 
     for (let attempt = 0; attempt < ENTITY.spawnAttempts; attempt++) {
       const x =
-        Math.round(playerX) +
-        this.rng.nextIntRange(-ENTITY.simulateRadius, ENTITY.simulateRadius + 1);
+        Math.round(playerX) + this.rng.nextIntRange(-this.simulateRadius, this.simulateRadius + 1);
       const spot = findSpawnSpot(world, x, Math.round(playerY), dayFactor);
       if (spot === null) continue;
       const kind = this.rng.chance(0.5) ? EnemyKind.Zombie : EnemyKind.Slime;

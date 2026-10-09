@@ -22,13 +22,14 @@ Continue reloads the most recent world.
 - Attack with a sword (hold): left mouse
 - Eat the held food: right mouse
 - Place / open a door / use a station / fill or pour a bucket: right mouse
-- Crafting / inventory: `E` (Esc closes)
+- Crafting / inventory: `E`
+- Creative item panel (creative mode): `C`
 - Select hotbar slot: `1`–`0`
 - Toggle Survival / Creative: `F6`
 - Creative palette: `1`–`9` or mouse wheel
+- Pause menu (Resume / Settings / Save & Exit): `Esc`
 - Zoom: `+` / `-`
 - Fullscreen: `F11`
-- Return to main menu (saves first): `Esc`
 - Developer overlay (FPS, budgets, mode, palette, inventory, aimed tile): `F3`
 - Debug: `F7` empties hunger, `F8` eats raw meat, `F9` spills water at the cursor, `F10` recomputes lighting
 
@@ -72,6 +73,16 @@ move. Equipment has four slots: helmet, chest, legs and ammo (there is no
 weapon slot; weapons are held in the hotbar). Right-click a workbench, anvil or
 furnace to use it; right-click a chest to open its 20 slots (persisted with the
 world); right-click a bed to set your respawn point.
+
+## Settings and creative mode
+
+`Esc` opens the pause menu (Resume / Settings / Save & Exit). Settings cover
+render and simulation distance, the liquid/sand/light frame budgets, resolution
+scale, UI scale, the overlay and key rebinding; they apply immediately and are
+saved to the browser. Switching the game mode in settings takes effect at once
+without rebuilding the world. In creative mode `C` opens the searchable item
+panel (click to receive a full stack), placing costs nothing, mining is
+instant, and enemies are passive.
 
 ## Liquids and sand
 

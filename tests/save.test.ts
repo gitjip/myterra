@@ -95,6 +95,11 @@ describe('save round-trip', () => {
     const bytes = encodeSave(state(baseline()));
     expect(bytes.length).toBeLessThan(1024);
   });
+
+  it('round-trips the game mode flag', () => {
+    const bytes = encodeSave(state(baseline(), { mode: 'creative' }));
+    expect(applySave(baseline(), bytes).mode).toBe('creative');
+  });
 });
 
 describe('save validation', () => {

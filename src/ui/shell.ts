@@ -1,5 +1,6 @@
 import { GEN, SAVE } from '../data/tuning';
 import { Game } from '../game/game';
+import { sizeCanvasToWindow } from '../render/canvasSize';
 import { applySave, encodeSave } from '../save/apply';
 import type { LoadedState } from '../save/apply';
 import { SaveStore } from '../save/persist';
@@ -49,6 +50,8 @@ export class Shell {
 
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('beforeunload', this.onBeforeUnload);
+    window.addEventListener('resize', this.onWindowResize);
+    sizeCanvasToWindow(canvas);
     this.create.hide();
     this.menu.show();
     void this.initializeStore();
@@ -62,6 +65,7 @@ export class Shell {
   public dispose(): void {
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('beforeunload', this.onBeforeUnload);
+    window.removeEventListener('resize', this.onWindowResize);
     this.stopAutosave();
     this.stopGeneration();
     this.game?.dispose();
@@ -277,6 +281,11 @@ export class Shell {
 
   private readonly onVisibility = (): void => {
     if (document.hidden && this.game) void this.saveCurrentWorld();
+  };
+
+  private readonly onWindowResize = (): void => {
+    if (this.game) this.game.resizeCanvas();
+    else sizeCanvasToWindow(this.canvas);
   };
 
   private readonly onBeforeUnload = (): void => {

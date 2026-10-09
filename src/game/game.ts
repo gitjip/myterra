@@ -25,6 +25,7 @@ import type { Passive } from '../entity/passive';
 import { PassiveManager } from '../entity/passive';
 import { ProjectileManager } from '../entity/projectile';
 import { Camera } from '../render/camera';
+import { sizeCanvasToWindow } from '../render/canvasSize';
 import { DebugOverlay } from '../render/debug';
 import { DamageNumbers, EnemyRenderer } from '../render/enemy';
 import { PassiveRenderer } from '../render/passive';
@@ -288,6 +289,11 @@ export class Game {
   public start(): void {
     this.fpsWindowStart = performance.now();
     this.loop.start();
+  }
+
+  /** Re-applies the logical resolution and integer display scale. */
+  public resizeCanvas(): void {
+    this.resize();
   }
 
   /** Narrow handle the dev console drives the game through. */
@@ -1199,19 +1205,8 @@ export class Game {
   }
 
   private resize(): void {
-    const width = RENDER.logicalWidth;
-    const height = RENDER.logicalHeight;
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      this.canvas.width = width;
-      this.canvas.height = height;
-    }
-    const factor = Math.max(
-      1,
-      Math.floor(Math.min(window.innerWidth / width, window.innerHeight / height)),
-    );
-    this.canvas.style.width = `${width * factor}px`;
-    this.canvas.style.height = `${height * factor}px`;
-    this.camera.setViewport(width, height);
+    sizeCanvasToWindow(this.canvas);
+    this.camera.setViewport(RENDER.logicalWidth, RENDER.logicalHeight);
   }
 
   private bindInput(): void {

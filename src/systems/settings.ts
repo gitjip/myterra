@@ -11,6 +11,7 @@ export interface Settings {
   lightBudgetMs: number;
   uiScale: number;
   showOverlay: boolean;
+  pixelSkin: boolean;
 }
 
 export const SETTINGS_STORAGE_KEY = 'myterra.settings';
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lightBudgetMs: FRAME_BUDGET_MS.light,
   uiScale: RENDER.defaultUiScale,
   showOverlay: false,
+  pixelSkin: false,
 };
 
 export interface KeyValueStore {
@@ -60,6 +62,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     lightBudgetMs: num('lightBudgetMs', 0.5, 8, DEFAULT_SETTINGS.lightBudgetMs),
     uiScale: snapUiScale(source['uiScale'] as number),
     showOverlay: source['showOverlay'] === true,
+    pixelSkin: source['pixelSkin'] === true,
   };
 }
 

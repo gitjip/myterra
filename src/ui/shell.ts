@@ -1,4 +1,6 @@
 import { GEN, SAVE } from '../data/tuning';
+import { IS_DEV } from '../dev/env';
+import type { DevWorldParams } from '../dev/urlState';
 import { Game } from '../game/game';
 import { sizeCanvasToWindow } from '../render/canvasSize';
 import { applySave, encodeSave } from '../save/apply';
@@ -28,6 +30,7 @@ export class Shell {
   private generationHandle = 0;
   private saveTimer = 0;
   private toastTimer = 0;
+  private pendingDev: DevWorldParams | null = null;
 
   public constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -55,6 +58,24 @@ export class Shell {
     this.create.hide();
     this.menu.show();
     void this.initializeStore();
+    if (IS_DEV) {
+      void import('../dev/urlState').then((mod) => {
+        const params = mod.parseDevWorldParams(location.search);
+        if (params) this.startDevWorld(params);
+      });
+    }
+  }
+
+  private startDevWorld(params: DevWorldParams): void {
+    this.pendingDev = params;
+    this.menu.hide();
+    this.create.show();
+    this.beginWorld({
+      name: 'Dev World',
+      seed: params.seed,
+      reachWidth: params.reachWidth,
+      mode: params.mode,
+    });
   }
 
   /** The running game, or null at the menu. Used by the dev tooling. */
@@ -233,7 +254,20 @@ export class Shell {
     };
     this.meta = meta;
     this.game.start();
+    this.applyPendingDev(this.game);
     this.startAutosave();
+  }
+
+  /** Applies a URL-encoded player position and time once the world is running. */
+  private applyPendingDev(game: Game): void {
+    const dev = this.pendingDev;
+    this.pendingDev = null;
+    if (!dev) return;
+    const bridge = game.devBridge();
+    if (dev.playerX !== undefined && dev.playerY !== undefined) {
+      bridge.teleport(dev.playerX, dev.playerY);
+    }
+    if (dev.timeOfDay !== undefined) bridge.setTimeOfDay(dev.timeOfDay);
   }
 
   private cancelGeneration(): void {

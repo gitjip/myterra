@@ -28,4 +28,22 @@ export interface DevBridge {
   modeName(): string;
   aim(): { x: number; y: number } | null;
   resetProfiler(): void;
+
+  // Time control
+  pause(): void;
+  resume(): void;
+  step(count: number): void;
+  isPaused(): boolean;
+
+  // Reproducible state
+  playerPos(): { x: number; y: number };
+  timeOfDayValue(): number;
+  reachWidth(): number;
+
+  // Frame history
+  frameReport(): string;
+
+  // Visualisers
+  setLayer(id: string, on: boolean): boolean;
+  listLayers(): string;
 }

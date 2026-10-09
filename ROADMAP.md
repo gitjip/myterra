@@ -582,7 +582,13 @@ Sections: 每段 = u8 tag + u32 byteLength + payload
     - **环境分离**：`src/dev/env.ts` 的 `IS_DEV`（`vite` DEV 或 `?dev=1`）；dev 代码走独立动态 chunk，ship 产物 tree-shake。
     - **Dev Console**：反引号开关，命令注册表 + 历史 + Tab 补全；`Game.devBridge()` 暴露传送/时间/物品/敌人生成/能力/光照/chunk/存档等操作。
     - **F3 Inspector**：光标格全字段（tile/wall/sky/block/liquid/dirty/chunk 状态）、光标实体、玩家完整状态、tick；沿用 5 Hz 节流、按需读取。
-    - **后续批次（未做）**：可视化层、时间控制/单步、可复现 URL、帧历史、像素皮肤。
+16. **UI 与调试整改（2026-10-09，实施第二批）**：
+    - **可视化层**：`dev/visualizers.ts` 提供 skyDepth/blockLight 热力图、chunk 边界、实体与范围框，独立开关（`viz list`、`viz <id> on|off`），Dev 独立 chunk。
+    - **时间控制**：`game/timeControl.ts` 暂停/单步/推进；`Game.fixedUpdate` 冻结模拟但继续渲染；反引号控制台 `pause`/`resume`/`step [n]`，Dev 下 `P` 键切换。
+    - **可复现 URL**：`dev/urlState.ts` 解析/构造 `?seed&width&mode&x&y&time`；`Shell` 在 Dev 下读取并直接进入世界；控制台 `url` 输出可分享链接。
+    - **帧历史**：`core/perf.ts` 新增 `FrameHistory` 环形缓冲（每系统分解 + 世界状态快照）；F3 显示最差帧、控制台 `frames` 导出。
+    - **像素皮肤（可选）**：`ui/skin.ts` 运行时生成边框贴图，经 `--mt-skin` 变量与 `mt-skin` body 类应用；设置项 `Pixel skin`（默认关）。
+    - 仍未做：本地液体/沙活跃格与光照脏区可视化、骨骼 AI 目标线（需暴露相应内部状态）。
 
 ## 20. 明确排除（v1 不做）
 
@@ -1347,5 +1353,5 @@ Medium 20 敌人 + 100 弹幕 ...
 | M10 战斗与敌人 | ✅ 已完成 | `feat(m10): add melee combat, enemies and spawning` | 2026-10-08 |
 | M11 生存闭环与被动生物 | ✅ 已完成 | `feat(m11): add death/respawn, food and passive rabbits` | 2026-10-08 |
 | M12 内容扩展 | ✅ 已完成 | 批次 A–D（内容/UI/分帧光照/校验），见提交历史 | 2026-10-09 |
-| M13 UI/设置/完整创造 | ✅ 已完成 | 暂停菜单/设置/创造面板/能力标志生效 + 代码审查修复 + UI/调试整改（勘误 #14/#15），见提交历史 | 2026-10-09 |
+| M13 UI/设置/完整创造 | ✅ 已完成 | 暂停菜单/设置/创造面板/能力标志生效 + 代码审查修复 + UI/调试整改（勘误 #14/#15/#16），见提交历史 | 2026-10-09 |
 | M14 发布 | ⬜ 未开始 | — | — |

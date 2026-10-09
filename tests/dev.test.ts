@@ -45,6 +45,16 @@ function fakeBridge(overrides: Partial<DevBridge> = {}): DevBridge {
     modeName: () => 'survival',
     aim: () => null,
     resetProfiler: noop,
+    pause: noop,
+    resume: noop,
+    step: noop,
+    isPaused: () => false,
+    playerPos: () => ({ x: 0, y: 0 }),
+    timeOfDayValue: () => 0.3,
+    reachWidth: () => 2048,
+    frameReport: () => 'frames 0',
+    setLayer: () => false,
+    listLayers: () => '',
     ...overrides,
   };
 }
@@ -91,6 +101,20 @@ describe('dev commands', () => {
 
     runCommand('time noon', bridge, capture.out);
     expect(setTimeOfDay).toHaveBeenCalledWith(0.25);
+  });
+
+  it('handles pause, step and viz', () => {
+    const pause = vi.fn();
+    const step = vi.fn();
+    const setLayer = vi.fn(() => true);
+    const bridge = fakeBridge({ pause, step, setLayer });
+    const capture = collector();
+    runCommand('pause', bridge, capture.out);
+    runCommand('step 3', bridge, capture.out);
+    runCommand('viz chunks on', bridge, capture.out);
+    expect(pause).toHaveBeenCalled();
+    expect(step).toHaveBeenCalledWith(3);
+    expect(setLayer).toHaveBeenCalledWith('chunks', true);
   });
 
   it('reports a bad item or enemy without calling the bridge', () => {

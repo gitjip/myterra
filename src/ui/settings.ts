@@ -32,6 +32,7 @@ export class SettingsPanel {
   private readonly root: HTMLDivElement;
   private readonly inputs = new Map<keyof Settings, HTMLInputElement>();
   private readonly overlayToggle: HTMLInputElement;
+  private readonly skinToggle: HTMLInputElement;
   private readonly uiScaleSelect: HTMLSelectElement;
   private readonly modeSelect: HTMLSelectElement;
   private readonly keyButtons = new Map<Action, HTMLButtonElement>();
@@ -104,6 +105,18 @@ export class SettingsPanel {
     overlayRow.append(overlayLabel, this.overlayToggle);
     panel.append(overlayRow);
 
+    const skinRow = document.createElement('div');
+    skinRow.className = 'mt-row';
+    const skinLabel = document.createElement('span');
+    skinLabel.textContent = TEXT.settings.pixelSkin;
+    this.skinToggle = document.createElement('input');
+    this.skinToggle.type = 'checkbox';
+    this.skinToggle.addEventListener('change', () => {
+      this.emitSkin();
+    });
+    skinRow.append(skinLabel, this.skinToggle);
+    panel.append(skinRow);
+
     const modeRow = document.createElement('div');
     modeRow.className = 'mt-row';
     const modeLabel = document.createElement('span');
@@ -173,6 +186,7 @@ export class SettingsPanel {
       if (input) input.value = String(settings[setting.key]);
     }
     this.overlayToggle.checked = settings.showOverlay;
+    this.skinToggle.checked = settings.pixelSkin;
     this.uiScaleSelect.value = String(settings.uiScale);
     this.modeSelect.value = mode;
     for (const action of ACTIONS) {
@@ -212,6 +226,13 @@ export class SettingsPanel {
   private emitOverlay(): void {
     if (!this.current) return;
     const next = { ...this.current, showOverlay: this.overlayToggle.checked };
+    this.current = next;
+    this.onSettingsChange(next);
+  }
+
+  private emitSkin(): void {
+    if (!this.current) return;
+    const next = { ...this.current, pixelSkin: this.skinToggle.checked };
     this.current = next;
     this.onSettingsChange(next);
   }

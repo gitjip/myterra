@@ -201,6 +201,83 @@ export class BudgetWatcher {
   }
 }
 
+export interface FrameSpanSample {
+  readonly name: string;
+  readonly ms: number;
+}
+
+export interface FrameRecord {
+  readonly frame: number;
+  readonly totalMs: number;
+  readonly spans: readonly FrameSpanSample[];
+  /** Short description of the world state when the frame ran. */
+  readonly context: string;
+}
+
+/**
+ * Ring buffer of the last N frames with a per-system breakdown, so an occasional
+ * hitch can be traced after the fact instead of only seeing rolling averages.
+ */
+export class FrameHistory {
+  private readonly buffer: Array<FrameRecord | undefined>;
+  private head = 0;
+  private length = 0;
+
+  public constructor(capacity = 300) {
+    this.buffer = new Array<FrameRecord | undefined>(Math.max(1, capacity));
+  }
+
+  public record(
+    frame: number,
+    totalMs: number,
+    spans: readonly FrameSpanSample[],
+    context: string,
+  ): void {
+    this.buffer[this.head] = {
+      frame,
+      totalMs,
+      spans: [...spans].sort((a, b) => b.ms - a.ms),
+      context,
+    };
+    this.head = (this.head + 1) % this.buffer.length;
+    if (this.length < this.buffer.length) this.length++;
+  }
+
+  public latest(): FrameRecord | undefined {
+    if (this.length === 0) return undefined;
+    const index = (this.head - 1 + this.buffer.length) % this.buffer.length;
+    return this.buffer[index];
+  }
+
+  /** The `count` most expensive frames, worst first. */
+  public worst(count: number): FrameRecord[] {
+    return this.all()
+      .sort((a, b) => b.totalMs - a.totalMs)
+      .slice(0, Math.max(0, count));
+  }
+
+  /** All buffered frames, oldest first. */
+  public all(): FrameRecord[] {
+    const out: FrameRecord[] = [];
+    for (let i = 0; i < this.length; i++) {
+      const index = (this.head - this.length + i + this.buffer.length * 2) % this.buffer.length;
+      const record = this.buffer[index];
+      if (record) out.push(record);
+    }
+    return out;
+  }
+
+  public get size(): number {
+    return this.length;
+  }
+
+  public clear(): void {
+    this.buffer.fill(undefined);
+    this.head = 0;
+    this.length = 0;
+  }
+}
+
 /** Budgeted wrapper for one subsystem. Exceeding the budget is reported, not thrown. */
 export class Budgeted {
   private readonly watcher = new BudgetWatcher();

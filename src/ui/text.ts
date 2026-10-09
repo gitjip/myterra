@@ -29,6 +29,7 @@ export const TEXT = {
     lightBudget: 'Light budget (ms)',
     uiScale: 'UI scale',
     showOverlay: 'Show overlay',
+    pixelSkin: 'Pixel skin',
   },
   crafting: { title: 'Crafting', craft: 'Craft' },
   furnace: { title: 'Furnace', insert: 'Insert', collect: 'Collect' },

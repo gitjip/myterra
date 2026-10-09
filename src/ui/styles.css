@@ -120,6 +120,16 @@
   align-items: center;
 }
 
+body.mt-skin .mt-panel {
+  border-color: transparent;
+  border-style: solid;
+  border-width: calc(8px * var(--ui-scale));
+  border-image-source: var(--mt-skin);
+  border-image-slice: 8;
+  border-image-width: calc(8px * var(--ui-scale));
+  border-image-repeat: stretch;
+}
+
 .mt-panel--wide {
   width: calc(440px * var(--ui-scale));
   max-height: calc(82vh);

@@ -1,6 +1,8 @@
 import { EnemyKind } from '../data/enemies';
 import { ItemId, itemDefinition } from '../data/items';
+import type { ModeName } from '../game/mode';
 import { TEXT } from '../ui/text';
+import { buildDevWorldUrl } from './urlState';
 import type { DevBridge } from './bridge';
 
 export interface CommandOutput {
@@ -182,10 +184,79 @@ function commands(): Command[] {
       },
     },
     {
+      name: 'pause',
+      help: 'freeze the simulation',
+      run: (_args, bridge, out) => {
+        bridge.pause();
+        out.print('paused');
+      },
+    },
+    {
+      name: 'resume',
+      help: 'unfreeze the simulation',
+      run: (_args, bridge, out) => {
+        bridge.resume();
+        out.print('running');
+      },
+    },
+    {
+      name: 'step',
+      help: 'step [n] fixed frames while paused',
+      run: (args, bridge, out) => {
+        const count = Math.max(1, parseIntArg(args, 0, 1));
+        bridge.step(count);
+        out.print(`stepping ${count} frame(s)`);
+      },
+    },
+    {
+      name: 'frames',
+      help: 'print the worst recent frames',
+      run: (_args, bridge, out) => {
+        out.print(bridge.frameReport());
+      },
+    },
+    {
+      name: 'viz',
+      help: 'viz list | viz <id> on|off',
+      run: (args, bridge, out) => {
+        if (args[0] === 'list') {
+          out.print(bridge.listLayers());
+          return;
+        }
+        const id = args[0];
+        if (id === undefined) {
+          out.print('usage: viz list | viz <id> on|off', true);
+          return;
+        }
+        const on = args[1] === 'on' || args[1] === '1' || args[1] === 'true';
+        const ok = bridge.setLayer(id, on);
+        out.print(ok ? `${id} ${on ? 'on' : 'off'}` : `unknown layer: ${id}`, !ok);
+      },
+    },
+    {
       name: 'seed',
       help: 'print the world seed',
       run: (_args, bridge, out) => {
         out.print(`seed ${bridge.seed()}  mode ${bridge.modeName()}`);
+      },
+    },
+    {
+      name: 'url',
+      help: 'print a shareable URL reproducing this world',
+      run: (_args, bridge, out) => {
+        const position = bridge.playerPos();
+        const base =
+          typeof location === 'undefined' ? 'http://localhost/' : `${location.origin}${location.pathname}`;
+        out.print(
+          buildDevWorldUrl(base, {
+            seed: bridge.seed(),
+            reachWidth: bridge.reachWidth(),
+            mode: bridge.modeName() as ModeName,
+            playerX: position.x,
+            playerY: position.y,
+            timeOfDay: bridge.timeOfDayValue(),
+          }),
+        );
       },
     },
     {

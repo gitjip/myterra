@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Budgeted, BudgetWatcher, Profiler } from '../src/core/perf';
+import { Budgeted, BudgetWatcher, FrameHistory, Profiler } from '../src/core/perf';
 import { FRAME, FRAME_BUDGET_MS } from '../src/data/tuning';
 
 /** Deterministic clock so span durations are exact. */
@@ -152,6 +152,28 @@ describe('Profiler', () => {
     profiler.end();
     profiler.reset();
     expect(profiler.get('logic')).toBeUndefined();
+  });
+});
+
+describe('FrameHistory', () => {
+  it('keeps the most recent frames and reports the worst', () => {
+    const history = new FrameHistory(4);
+    for (let i = 0; i < 6; i++) {
+      history.record(i, i, [{ name: 'logic', ms: i }], `ctx${i}`);
+    }
+    expect(history.size).toBe(4);
+    expect(history.latest()?.frame).toBe(5);
+    expect(history.worst(2).map((f) => f.frame)).toEqual([5, 4]);
+    expect(history.all().map((f) => f.frame)).toEqual([2, 3, 4, 5]);
+  });
+
+  it('sorts a frame span breakdown by cost and can be cleared', () => {
+    const history = new FrameHistory();
+    history.record(1, 5, [{ name: 'a', ms: 1 }, { name: 'b', ms: 4 }], 'x');
+    expect(history.worst(1)[0]?.spans[0]?.name).toBe('b');
+    history.clear();
+    expect(history.size).toBe(0);
+    expect(history.latest()).toBeUndefined();
   });
 });
 

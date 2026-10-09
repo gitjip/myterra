@@ -1,12 +1,14 @@
 import { GameLoop } from '../core/loop';
 import type { RenderInfo } from '../core/loop';
 import { clamp, rectsOverlap, sign } from '../core/math';
-import { Profiler } from '../core/perf';
+import { FrameHistory, Profiler } from '../core/perf';
 import { Rng } from '../core/rng';
 import { ItemId, bonusDropsForTile, itemDefinition, stationOfTile } from '../data/items';
 import { TileId } from '../data/tiles';
 import { ENEMIES } from '../data/enemies';
 import type { DevBridge } from '../dev/bridge';
+import { IS_DEV } from '../dev/env';
+import type { DevLayers, VizFrame } from '../dev/visualizers';
 import {
   DEBUG,
   FRAME,
@@ -20,14 +22,14 @@ import {
 } from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
+import { TimeControl } from './timeControl';
 import { Enemy } from '../entity/enemy';
 import type { Passive } from '../entity/passive';
 import { PassiveManager } from '../entity/passive';
 import { ProjectileManager } from '../entity/projectile';
 import { Camera } from '../render/camera';
 import { sizeCanvasToWindow } from '../render/canvasSize';
-import { DebugOverlay } from '../render/debug';
-import { DamageNumbers, EnemyRenderer } from '../render/enemy';
+import { DebugOverlay } from '../render/debug';import { DamageNumbers, EnemyRenderer } from '../render/enemy';
 import { PassiveRenderer } from '../render/passive';
 import { InteractionRenderer } from '../render/interaction';
 import { LightOverlay } from '../render/lightOverlay';
@@ -54,6 +56,7 @@ import { Hud } from '../ui/hud';
 import { InventoryPanel } from '../ui/inventory';
 import { PausePanel } from '../ui/pause';
 import { SettingsPanel } from '../ui/settings';
+import { applyPixelSkin } from '../ui/skin';
 import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
 import { LightSystem } from '../world/light';
 import { LiquidSystem } from '../world/liquid';
@@ -81,6 +84,7 @@ export interface GameOptions {
  */
 export class Game {
   public readonly profiler = new Profiler();
+  public readonly history = new FrameHistory();
   public readonly overlay: DebugOverlay;
   public readonly world: World;
   public readonly player: Player;
@@ -105,6 +109,11 @@ export class Game {
   public readonly seed: number;
   public timeOfDay: number = LIGHT.startTimeOfDay;
   public dayCount: number = 0;
+
+  /** Dev pause / single-step control. */
+  private readonly timeControl = new TimeControl();
+  /** Dev overlay visualisers; loaded lazily and absent from Ship. */
+  private devLayers: DevLayers | null = null;
 
   private readonly loop: GameLoop;
   private readonly canvas: HTMLCanvasElement;
@@ -284,6 +293,13 @@ export class Game {
     this.resizeObserver.observe(canvas);
     this.bindInput();
     this.applySettings();
+    if (IS_DEV) {
+      void import('../dev/visualizers')
+        .then((mod) => {
+          this.devLayers = mod.createDevLayers();
+        })
+        .catch(() => undefined);
+    }
   }
 
   public start(): void {
@@ -368,7 +384,48 @@ export class Game {
       seed: () => this.seed,
       modeName: () => this.mode.name,
       aim: () => (this.aim ? { x: this.aim.x, y: this.aim.y } : null),
-      resetProfiler: () => { this.profiler.clearWindow(); },
+      resetProfiler: () => {
+        this.profiler.clearWindow();
+        this.history.clear();
+      },
+      pause: () => { this.timeControl.setPaused(true); },
+      resume: () => { this.timeControl.setPaused(false); },
+      step: (count) => { this.timeControl.requestStep(count); },
+      isPaused: () => this.timeControl.isPaused,
+      playerPos: () => ({ x: this.player.body.x, y: this.player.body.y }),
+      timeOfDayValue: () => this.timeOfDay,
+      reachWidth: () => this.world.reachWidth,
+      frameReport: () => this.frameReport(),
+      setLayer: (id, on) => this.devLayers?.set(id, on) ?? false,
+      listLayers: () => this.devLayers?.list() ?? 'visualisers unavailable',
+    };
+  }
+
+  private frameReport(): string {
+    const worst = this.history.worst(3);
+    if (worst.length === 0) return 'no frames recorded';
+    const lines = [`frames ${this.history.size}`];
+    for (const record of worst) {
+      const spans = record.spans
+        .slice(0, 4)
+        .map((span) => `${span.name} ${span.ms.toFixed(2)}`);
+      lines.push(
+        `  #${record.frame} ${record.totalMs.toFixed(2)}ms  ${spans.join(', ')}  ${record.context}`,
+      );
+    }
+    return lines.join('\n');
+  }
+
+  private devFrame(): VizFrame {
+    return {
+      world: this.world,
+      camera: this.camera,
+      playerBody: this.player.body,
+      enemies: this.enemies,
+      passives: this.passives.rabbits,
+      pickups: this.pickups.all,
+      projectiles: this.projectiles.all,
+      aim: this.aim,
     };
   }
 
@@ -407,6 +464,8 @@ export class Game {
   private fixedUpdate(dt: number): void {
     // The creative panel and the pause menu freeze simulation; settings do not.
     if (this.paused || (this.creativePanel?.open ?? false)) return;
+    // Dev pause freezes simulation but keeps rendering; queued steps run.
+    if (!this.timeControl.shouldStep()) return;
     this.camera.beginStep();
     const input = this.input.state;
     const flags = this.mode.flags;
@@ -660,6 +719,7 @@ export class Game {
     );
     this.particles.render(this.ctx, this.camera);
     this.lightOverlay.render(this.ctx, this.camera, this.world, this.light.dayFactor, this.light.version);
+    this.devLayers?.render(this.ctx, this.devFrame());
     this.damageNumbers.render(this.ctx, this.camera);
     const highlight = this.interaction.mining
       ? { x: this.interaction.miningTargetX, y: this.interaction.miningTargetY }
@@ -688,6 +748,8 @@ export class Game {
       this.furnacePanel?.update(this.activeFurnace, this.inventory);
     }
 
+    this.recordFrame(info.frameIndex);
+
     this.overlay.render(this.profiler, {
       fps: this.fps,
       frameIndex: info.frameIndex,
@@ -696,6 +758,21 @@ export class Game {
         this.collectExtra(lines);
       },
     });
+  }
+
+  /** Captures the per-system timing of this rendered frame for later debugging. */
+  private recordFrame(frameIndex: number): void {
+    const stats = this.profiler.stats();
+    let total = 0;
+    const spans = stats.map((span) => {
+      total += span.last;
+      return { name: span.name, ms: span.last };
+    });
+    const context =
+      `p${this.player.centreX.toFixed(1)},${this.player.centreY.toFixed(1)} ` +
+      `e${this.enemies.length} liq${this.liquid.activeCells} sand${this.sand.activeCells} ` +
+      `lt${this.light.stats.nodes}`;
+    this.history.record(frameIndex, total, spans, context);
   }
 
   private collectExtra(lines: string[]): void {
@@ -762,8 +839,21 @@ export class Game {
       );
     }
     lines.push(
-      `tick ${Math.round(this.elapsed / FRAME.fixedDt)}  fixed step ${(FRAME.fixedDt * 1000).toFixed(3)} ms`,
+      `tick ${Math.round(this.elapsed / FRAME.fixedDt)}  fixed step ${(FRAME.fixedDt * 1000).toFixed(3)} ms` +
+        (this.timeControl.isPaused
+          ? `  PAUSED (step ${this.timeControl.stepsRemaining})`
+          : ''),
     );
+    const worst = this.history.worst(1)[0];
+    if (worst) {
+      lines.push(
+        `frame ${worst.totalMs.toFixed(2)}ms worst  history ${this.history.size}  ` +
+          worst.spans
+            .slice(0, 3)
+            .map((span) => `${span.name} ${span.ms.toFixed(2)}`)
+            .join(', '),
+      );
+    }
   }
 
   /** Entities overlapping a tile, formatted for the inspector. */
@@ -931,6 +1021,7 @@ export class Game {
     this.passives.simulateRadius = this.settings.simulationDistance;
     this.passives.despawnRadius = despawn;
     this.uiRoot.style.setProperty('--ui-scale', String(this.settings.uiScale));
+    applyPixelSkin(this.settings.pixelSkin);
     this.overlay.toggle(this.settings.showOverlay);
     this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
     this.resize();
@@ -1281,6 +1372,12 @@ export class Game {
       if (event.code === DEBUG.relightKey) {
         event.preventDefault();
         this.light.fullRelight();
+        return;
+      }
+      if (event.code === 'KeyP' && IS_DEV) {
+        event.preventDefault();
+        const paused = this.timeControl.toggle();
+        this.hud.showItemName(paused ? 'Paused (dev)' : 'Running');
         return;
       }
       const slot = hotbarSlotFromCode(event.code);

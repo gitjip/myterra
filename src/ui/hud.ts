@@ -25,6 +25,7 @@ export class Hud {
   private readonly slotLabels: HTMLSpanElement[] = [];
   private readonly slotCounts: HTMLSpanElement[] = [];
   private hotbar: HTMLDivElement | undefined;
+  private bars: HTMLDivElement | undefined;
   private readonly itemName: HTMLDivElement;
   private itemNameText = '';
   private itemNameExpiresAt = 0;
@@ -120,7 +121,13 @@ export class Hud {
 
     this.root.append(bars, this.itemName, hotbar);
     this.hotbar = hotbar;
+    this.bars = bars;
     parent.append(this.root);
+  }
+
+  /** Hides the survival bars in creative mode; the hotbar stays. */
+  public setSurvival(survival: boolean): void {
+    if (this.bars) this.bars.style.display = survival ? 'flex' : 'none';
   }
 
   /** Hides the hotbar while a full inventory panel is open. */

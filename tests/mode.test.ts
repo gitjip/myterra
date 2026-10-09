@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDoorTile, TileId } from '../src/data/tiles';
-import { CREATIVE, CREATIVE_PALETTE, MODE, Mode, SURVIVAL } from '../src/game/mode';
+import { CREATIVE, MODE, Mode, SURVIVAL } from '../src/game/mode';
 
 describe('mode', () => {
   it('exposes the documented presets', () => {
@@ -32,12 +31,5 @@ describe('mode', () => {
   it('keeps the MODE record pointing at the presets', () => {
     expect(MODE.survival).toBe(SURVIVAL);
     expect(MODE.creative).toBe(CREATIVE);
-  });
-
-  it('exposes only valid raw tiles in the creative palette', () => {
-    expect(CREATIVE_PALETTE.length).toBeGreaterThan(0);
-    for (const tile of CREATIVE_PALETTE) expect(TileId[tile]).toBeTruthy();
-    expect(CREATIVE_PALETTE).toContain(TileId.Stone);
-    expect(CREATIVE_PALETTE.some(isDoorTile)).toBe(true);
   });
 });

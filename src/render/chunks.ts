@@ -42,7 +42,11 @@ export class ChunkRenderer {
     });
   }
 
-  public render(ctx: CanvasRenderingContext2D, camera: Camera): ChunkRenderStats {
+  public render(
+    ctx: CanvasRenderingContext2D,
+    camera: Camera,
+    countTiles = false,
+  ): ChunkRenderStats {
     const visible = camera.visibleRect();
     const minChunkX = this.chunkX(visible.minX);
     const maxChunkX = this.chunkX(visible.maxX);
@@ -82,9 +86,11 @@ export class ChunkRenderer {
       }
     }
 
-    for (let y = visible.minY; y <= visible.maxY; y++) {
-      for (let x = visible.minX; x <= visible.maxX; x++) {
-        if (this.world.getTile(x, y) !== TileId.Air) drawnTiles++;
+    if (countTiles) {
+      for (let y = visible.minY; y <= visible.maxY; y++) {
+        for (let x = visible.minX; x <= visible.maxX; x++) {
+          if (this.world.getTile(x, y) !== TileId.Air) drawnTiles++;
+        }
       }
     }
 

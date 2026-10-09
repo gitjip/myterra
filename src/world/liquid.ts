@@ -14,6 +14,8 @@ export class LiquidSystem {
   private tail = 0;
   private count = 0;
   private readonly queued: Uint8Array;
+  private rebuildCursor = 0;
+  private rebuildPending = false;
 
   public constructor(private readonly world: World) {
     this.queued = new Uint8Array((world.width * world.height + 7) >> 3);
@@ -43,6 +45,32 @@ export class LiquidSystem {
     for (let i = 0; i < amounts.length; i++) {
       if ((amounts[i] ?? 0) > 0) this.wakeIndex(i);
     }
+  }
+
+  /** Begins a frame-split rebuild of the active queue (see startRebuild). */
+  public startRebuild(): void {
+    this.reset();
+    this.rebuildCursor = 0;
+    this.rebuildPending = true;
+  }
+
+  public get rebuilding(): boolean {
+    return this.rebuildPending;
+  }
+
+  /** Advances the frame-split rebuild within `budgetMs`. */
+  public rebuildActiveIncremental(budgetMs: number): void {
+    if (!this.rebuildPending) return;
+    const started = performance.now();
+    const amounts = this.world.liquidAmount;
+    while (
+      this.rebuildCursor < amounts.length &&
+      performance.now() - started < budgetMs
+    ) {
+      if ((amounts[this.rebuildCursor] ?? 0) > 0) this.wakeIndex(this.rebuildCursor);
+      this.rebuildCursor++;
+    }
+    if (this.rebuildCursor >= amounts.length) this.rebuildPending = false;
   }
 
   public clear(): void {

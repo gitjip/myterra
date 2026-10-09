@@ -20,6 +20,8 @@ export interface InventoryEvents {
   select: number;
   /** An equipment slot changed. */
   equipment: EquipmentSlot;
+  /** Many slots changed at once (bulk restore); redraw lazily. */
+  bulk: undefined;
 }
 
 /**
@@ -236,7 +238,7 @@ export class Inventory {
     for (let i = 0; i < this.slots.length; i++) {
       const incoming = slots[i] ?? null;
       this.slots[i] = incoming ? { item: incoming.item, count: incoming.count } : null;
-      this.emitter.emit('change', i);
     }
+    this.emitter.emit('bulk', undefined);
   }
 }

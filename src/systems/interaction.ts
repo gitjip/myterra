@@ -49,8 +49,6 @@ export interface InteractionInput {
   readonly instantMine?: boolean;
   /** Creative: do not consume the placed item. */
   readonly infinitePlace?: boolean;
-  /** Creative sandbox: place this raw tile instead of the held item. */
-  readonly paletteTile?: TileId | null;
 }
 
 /**
@@ -115,8 +113,6 @@ export interface PlaceSpec {
   readonly isDoor: boolean;
 }
 
-const UNIT_FOOTPRINT: Footprint = { w: 1, h: 1 };
-
 export function specForItem(item: ItemId): PlaceSpec {
   const def = itemDefinition(item);
   return {
@@ -124,18 +120,6 @@ export function specForItem(item: ItemId): PlaceSpec {
     footprint: def.footprint,
     requiresSupport: def.requiresSupport,
     isDoor: def.isDoor,
-  };
-}
-
-export function specForTile(tile: TileId): PlaceSpec {
-  if (isDoorTile(tile)) {
-    return { tile: null, footprint: { w: 1, h: 2 }, requiresSupport: false, isDoor: true };
-  }
-  return {
-    tile,
-    footprint: UNIT_FOOTPRINT,
-    requiresSupport: tile === TileId.Torch,
-    isDoor: false,
   };
 }
 
@@ -367,15 +351,6 @@ export class InteractionSystem {
 
     const wants = input.placePressed || (input.placeHeld && this.placeCooldown <= 0);
     if (!wants) return;
-
-    const paletteTile = input.paletteTile ?? null;
-    if (paletteTile !== null) {
-      const spec = specForTile(paletteTile);
-      if (!canPlaceSpec(world, body, spec, input.tileX, input.tileY).ok) return;
-      applyPlaceSpec(world, spec, input.tileX, input.tileY);
-      this.placeCooldown = INTERACTION.placeRepeatSeconds;
-      return;
-    }
 
     const slot = inventory.selectedSlot;
     if (!slot) return;

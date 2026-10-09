@@ -1,8 +1,7 @@
-import { TileId } from '../data/tiles';
-
 /**
  * Ability flags. A mode is just a preset of these; switching modes swaps the
- * whole flag set without rebuilding the world.
+ * whole flag set without rebuilding the world. Placement, the hotbar and the
+ * number keys behave identically in both modes.
  */
 export interface AbilityFlags {
   canFly: boolean;
@@ -49,22 +48,6 @@ export const MODE: Readonly<Record<ModeName, AbilityFlags>> = {
   survival: SURVIVAL,
   creative: CREATIVE,
 };
-
-/**
- * Raw-tile build palette for the creative sandbox. It is deliberately separate
- * from the item system so it works before crafting and content exist.
- */
-export const CREATIVE_PALETTE: readonly TileId[] = [
-  TileId.Dirt,
-  TileId.Grass,
-  TileId.Stone,
-  TileId.Wood,
-  TileId.Leaf,
-  TileId.Sand,
-  TileId.Torch,
-  TileId.DoorBottomOpen,
-  TileId.Bedrock,
-];
 
 /** Mutable holder. `set` replaces the flag set reference, never mutates it. */
 export class Mode {

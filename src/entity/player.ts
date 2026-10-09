@@ -104,8 +104,8 @@ export class Player {
     const reduction = clamp(this.armorReduction, 0, COMBAT.armorReductionCap);
     const applied = Math.max(1, Math.round((damage * (100 - reduction)) / 100));
     this.health = clamp(this.health - applied, 0, SURVIVAL.maxHealth);
-    this.body.vx += knockbackX;
-    this.body.vy = Math.min(this.body.vy, knockbackY);
+    this.body.vx = knockbackX;
+    this.body.vy = knockbackY;
     this.invulnTimer = COMBAT.hitInvulnerability;
     if (this.health <= 0) {
       this.health = 0;

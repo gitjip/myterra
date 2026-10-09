@@ -59,7 +59,7 @@ import type { World } from '../world/world';
 import { findSpawn } from '../world/gen/generator';
 import type { LoadedState, SaveChest, SaveInventory, SavePlayer } from '../save/apply';
 import { InputManager } from './input';
-import { CREATIVE_PALETTE, Mode } from './mode';
+import { Mode } from './mode';
 import type { ModeName } from './mode';
 
 export interface GameOptions {
@@ -137,7 +137,6 @@ export class Game {
   private readonly disposers: Array<() => void> = [];
 
   private aim: { x: number; y: number } | null = null;
-  private paletteIndex = 0;
   private frames = 0;
   private fpsWindowStart = 0;
   private fps = 0;
@@ -172,6 +171,7 @@ export class Game {
     this.input = new InputManager(canvas);
     this.overlay = new DebugOverlay(uiRoot);
     this.hud = new Hud(uiRoot);
+    this.hud.setSurvival(this.mode.name === 'survival');
     this.furnacePanel = new FurnacePanel(uiRoot);
     this.inventoryPanel = new InventoryPanel(uiRoot);
     this.inventoryPanel.bind(this.inventory, null);
@@ -222,7 +222,8 @@ export class Game {
       this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
     };
     this.creativePanel.onPick = (item) => {
-      this.inventory.addItem(item, itemDefinition(item).stackMax);
+      const leftover = this.inventory.addItem(item, itemDefinition(item).stackMax);
+      if (leftover > 0) this.toast(`${itemDefinition(item).name}: inventory full`);
     };
 
     this.timeOfDay = options.saved?.timeOfDay ?? LIGHT.startTimeOfDay;
@@ -243,13 +244,13 @@ export class Game {
 
     this.liquid = new LiquidSystem(this.world);
     this.sand = new SandSystem(this.world);
+    this.liquid.startRebuild();
     this.disposers.push(
       this.world.emitter.on('tile', ({ x, y }) => {
         this.liquid.wakeNeighbourhood(x, y);
         this.sand.wakeNeighbourhood(x, y);
       }),
     );
-    this.liquid.rebuildActive();
 
     this.inventory.emitter.on('select', (index) => {
       const slot = this.inventory.getSlot(index);
@@ -274,7 +275,6 @@ export class Game {
     this.resizeObserver.observe(canvas);
     this.bindInput();
     this.applySettings();
-    this.resize();
   }
 
   public start(): void {
@@ -404,7 +404,7 @@ export class Game {
     }
 
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
-      if (this.mode.name === 'creative') this.updatePaletteFromWheel();
+      this.updateHotbarFromWheel();
       this.aim = input.mouse.inside ? this.tileAtMouse(input.mouse.x, input.mouse.y) : null;
       this.updateHeldAction(dt, input.mouse.left, input.mouse.right);
       this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
@@ -419,6 +419,7 @@ export class Game {
     });
 
     this.profiler.measure('liquid', this.settings.liquidBudgetMs, () => {
+      this.liquid.rebuildActiveIncremental(this.settings.liquidBudgetMs);
       this.liquid.update(this.settings.liquidBudgetMs);
     });
 
@@ -436,16 +437,15 @@ export class Game {
     );
   }
 
-  private updatePaletteFromWheel(): void {
+  /** Wheel cycles the hotbar selection, the same in both modes. */
+  private updateHotbarFromWheel(): void {
     const wheel = this.input.consumeWheel();
     if (wheel === 0) return;
-    this.paletteIndex = wrapIndex(this.paletteIndex + Math.sign(wheel), CREATIVE_PALETTE.length);
+    this.inventory.select(wrapIndex(this.inventory.selected + Math.sign(wheel), 10));
   }
 
   private updateInteraction(dt: number, mine: boolean, placeHeld: boolean): void {
     const target = this.aim;
-    const creative = this.mode.name === 'creative';
-    const paletteTile = creative ? (CREATIVE_PALETTE[this.paletteIndex] ?? null) : null;
 
     // Right-clicking a workstation opens its dialog instead of placing.
     let placePressed = this.input.consumePress('right');
@@ -480,7 +480,6 @@ export class Game {
       dt,
       instantMine: this.mode.flags.instantMine,
       infinitePlace: this.mode.flags.infinitePlace,
-      paletteTile,
     });
 
     if (breakEvent) {
@@ -552,7 +551,7 @@ export class Game {
     this.camera.setRenderAlpha(info.alpha);
     const sky = skyColorFor(this.timeOfDay);
     this.terrainStats = this.profiler.measure('render', FRAME_BUDGET_MS.render, () => {
-      return this.terrain.render(this.ctx, this.camera, cssColor(sky));
+      return this.terrain.render(this.ctx, this.camera, cssColor(sky), this.overlay.visible);
     });
     this.liquidRenderer.render(this.ctx, this.camera, this.world, this.elapsed);
     this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
@@ -628,17 +627,18 @@ export class Game {
       `day ${this.timeOfDay.toFixed(3)} x${this.dayCount} factor ${this.light.dayFactor.toFixed(3)}  ` +
         `light dirty ${light.dirty} nodes ${light.nodes} ${light.ms.toFixed(2)} ms${this.light.isRelightPending ? ' relighting' : ''}`,
     );
-    lines.push(`liquid active ${this.liquid.activeCells}  sand active ${this.sand.activeCells}`);
+    lines.push(
+      `liquid active ${this.liquid.activeCells}  sand active ${this.sand.activeCells}  ` +
+        `rebuild ${this.liquid.rebuilding ? 'pending' : 'done'}`,
+    );
     const flags = this.mode.flags;
     lines.push(
-      `mode ${this.mode.name} fly=${flags.canFly ? 1 : 0} instant=${flags.instantMine ? 1 : 0} ` +
+      `mode ${this.mode.name} ui ${this.uiState} sim ${this.settings.simulationDistance} ` +
+        `fly=${flags.canFly ? 1 : 0} instant=${flags.instantMine ? 1 : 0} ` +
         `infPlace=${flags.infinitePlace ? 1 : 0} invuln=${flags.invulnerable ? 1 : 0}`,
     );
     if (this.mode.name === 'creative') {
-      const tile = CREATIVE_PALETTE[this.paletteIndex];
-      lines.push(
-        `palette ${this.paletteIndex + 1}/${CREATIVE_PALETTE.length} ${tile !== undefined ? TileId[tile] : '-'}`,
-      );
+      lines.push(`creative panel: press C`);
     }
     lines.push(
       `held ${this.heldSummary()}  enemies ${this.enemies.length}  arrows ${this.projectiles.count}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
@@ -814,6 +814,7 @@ export class Game {
     this.mode.set(name);
     this.player.canFly = this.mode.flags.canFly;
     if (name !== 'creative') this.creativePanel?.set(false);
+    this.hud.setSurvival(name === 'survival');
     this.hud.showItemName(name === 'creative' ? 'Creative Mode' : 'Survival Mode');
   }
 
@@ -829,8 +830,33 @@ export class Game {
 
   private openSettings(): void {
     this.pausePanel?.set(false);
+    this.creativePanel?.set(false);
+    this.setUi('none');
     this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
     this.settingsPanel?.set(true);
+  }
+
+  private toast(message: string): void {
+    const element = document.createElement('div');
+    element.textContent = message;
+    Object.assign(element.style, {
+      position: 'fixed',
+      left: '50%',
+      top: '16px',
+      transform: 'translateX(-50%)',
+      padding: '6px 12px',
+      background: 'rgba(20, 24, 36, 0.95)',
+      border: '1px solid #2a2f45',
+      borderRadius: '4px',
+      color: '#f0d58c',
+      zIndex: '3000',
+      pointerEvents: 'none',
+      font: '13px ui-monospace, Menlo, Consolas, monospace',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.uiRoot.append(element);
+    window.setTimeout(() => {
+      element.remove();
+    }, 1800);
   }
 
   /** Escape routing: close dialogs first, otherwise toggle the pause menu. */
@@ -1110,7 +1136,10 @@ export class Game {
       if (event.code === 'KeyC') {
         event.preventDefault();
         if (this.mode.name === 'creative' && !this.paused) {
-          if (!this.creativePanel?.open) this.setUi('none');
+          if (!this.creativePanel?.open) {
+            this.setUi('none');
+            this.settingsPanel?.set(false);
+          }
           this.creativePanel?.toggle();
         }
         return;
@@ -1141,10 +1170,7 @@ export class Game {
         return;
       }
       const slot = hotbarSlotFromCode(event.code);
-      if (slot !== null) {
-        if (this.mode.name === 'creative') this.selectPalette(slot);
-        else this.inventory.select(slot);
-      }
+      if (slot !== null) this.inventory.select(slot);
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -1161,13 +1187,6 @@ export class Game {
     const name = this.mode.toggle();
     this.player.canFly = this.mode.flags.canFly;
     this.hud.showItemName(name === 'creative' ? 'Creative Mode' : 'Survival Mode');
-  }
-
-  private selectPalette(index: number): void {
-    if (index < 0 || index >= CREATIVE_PALETTE.length) return;
-    this.paletteIndex = index;
-    const tile = CREATIVE_PALETTE[index];
-    if (tile !== undefined) this.hud.showItemName(TileId[tile]);
   }
 
   /** Debug: spill a little water at the aimed tile until M10 adds buckets. */

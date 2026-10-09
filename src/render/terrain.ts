@@ -24,11 +24,12 @@ export class TerrainRenderer {
     ctx: CanvasRenderingContext2D,
     camera: Camera,
     skyColor: string,
+    countTiles = false,
   ): TerrainRenderStats {
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = skyColor;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    const stats = this.chunks.render(ctx, camera);
+    const stats = this.chunks.render(ctx, camera, countTiles);
     const visibleRect = camera.visibleRect();
     return {
       ...stats,

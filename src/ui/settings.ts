@@ -228,6 +228,7 @@ export class SettingsPanel {
     const action = this.listeningFor;
     this.listeningFor = null;
     this.onRebind(action, event.code);
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
   private emitNumber(key: keyof Settings, value: number): void {

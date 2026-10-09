@@ -280,24 +280,28 @@ describe('creative sandbox', () => {
     expect(inventory.countOf(ItemId.Torch)).toBe(3);
   });
 
-  it('places raw palette tiles with no inventory', () => {
+  it('places the selected inventory item in creative mode', () => {
     const world = makeWorld();
+    const inventory = new Inventory();
+    inventory.addItem(ItemId.Stone, 5);
     const system = new InteractionSystem();
-    system.update(world, standing(), new Inventory(), {
+    system.update(world, standing(), inventory, {
       ...base,
       placePressed: true,
-      paletteTile: TileId.Stone,
+      infinitePlace: true,
     });
     expect(world.getTile(12, -2)).toBe(TileId.Stone);
   });
 
-  it('places a palette door as both open halves', () => {
+  it('places the selected door as both open halves', () => {
     const world = makeWorld();
+    const inventory = new Inventory();
+    inventory.addItem(ItemId.Door, 1);
     const system = new InteractionSystem();
-    system.update(world, standing(), new Inventory(), {
+    system.update(world, standing(), inventory, {
       ...base,
       placePressed: true,
-      paletteTile: TileId.DoorBottomOpen,
+      infinitePlace: true,
     });
     expect(world.getTile(12, -2)).toBe(TileId.DoorBottomOpen);
     expect(world.getTile(12, -3)).toBe(TileId.DoorTopOpen);

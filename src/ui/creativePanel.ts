@@ -1,5 +1,4 @@
-import { ITEM_DEFINITIONS, itemDefinition } from '../data/items';
-import type { ItemId } from '../data/items';
+import { ItemId, itemDefinition } from '../data/items';
 import { TEXT } from './text';
 
 const OVERLAY: Partial<CSSStyleDeclaration> = {
@@ -48,9 +47,7 @@ export class CreativePanel {
   public onPick: (item: ItemId) => void = () => {};
 
   public constructor(parent: HTMLElement) {
-    this.allItems = Object.values(ITEM_DEFINITIONS)
-      .map((_, index) => index)
-      .filter((value): value is ItemId => value in ITEM_DEFINITIONS);
+    this.allItems = Object.values(ItemId).filter((value): value is ItemId => typeof value === 'number');
 
     this.root = document.createElement('div');
     Object.assign(this.root.style, OVERLAY);

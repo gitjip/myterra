@@ -14,6 +14,7 @@ export class LightOverlay {
   private image: ImageData | null = null;
   private width = 0;
   private height = 0;
+  private cacheKey = '';
 
   public constructor() {
     this.canvas = document.createElement('canvas');
@@ -37,28 +38,36 @@ export class LightOverlay {
     const h = maxY - minY + 1;
     if (w <= 0 || h <= 0) return;
 
+    const key =
+      `${world.revision}|${camera.left.toFixed(3)}|${camera.top.toFixed(3)}|` +
+      `${Math.round(dayFactor * 255)}|${minX},${minY},${w},${h}`;
+
     if (w !== this.width || h !== this.height || !this.image) {
       this.canvas.width = w;
       this.canvas.height = h;
       this.width = w;
       this.height = h;
       this.image = this.ctx.createImageData(w, h);
+      this.cacheKey = '';
     }
 
-    const data = this.image.data;
-    for (let ty = 0; ty < h; ty++) {
-      const y = minY + ty;
-      for (let tx = 0; tx < w; tx++) {
-        const brightness = displayBrightness(world, minX + tx, y, dayFactor);
-        const value = brightness < 0 ? 0 : brightness > 255 ? 255 : brightness | 0;
-        const p = (ty * w + tx) * 4;
-        data[p] = value;
-        data[p + 1] = value;
-        data[p + 2] = value;
-        data[p + 3] = 255;
+    if (key !== this.cacheKey) {
+      this.cacheKey = key;
+      const data = this.image.data;
+      for (let ty = 0; ty < h; ty++) {
+        const y = minY + ty;
+        for (let tx = 0; tx < w; tx++) {
+          const brightness = displayBrightness(world, minX + tx, y, dayFactor);
+          const value = brightness < 0 ? 0 : brightness > 255 ? 255 : brightness | 0;
+          const p = (ty * w + tx) * 4;
+          data[p] = value;
+          data[p + 1] = value;
+          data[p + 2] = value;
+          data[p + 3] = 255;
+        }
       }
+      this.ctx.putImageData(this.image, 0, 0);
     }
-    this.ctx.putImageData(this.image, 0, 0);
 
     const screen = camera.worldToScreen(minX, minY);
     const scale = TILE.px * camera.zoom;

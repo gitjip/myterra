@@ -84,4 +84,16 @@ describe('Inventory', () => {
     inventory.select(13);
     expect(inventory.selected).toBe(3);
   });
+
+  it('emits a single bulk event when restoring a save', () => {
+    const inventory = new Inventory(12);
+    let changes = 0;
+    let bulks = 0;
+    inventory.emitter.on('change', () => changes++);
+    inventory.emitter.on('bulk', () => bulks++);
+    inventory.restore([{ item: ItemId.Stone, count: 5 }, null]);
+    expect(bulks).toBe(1);
+    expect(changes).toBe(0);
+    expect(inventory.getSlot(0)).toEqual({ item: ItemId.Stone, count: 5 });
+  });
 });

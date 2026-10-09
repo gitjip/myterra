@@ -67,6 +67,17 @@ describe('Camera', () => {
     expect(result.position.x).toBeGreaterThanOrEqual(settled - 1e-9);
   });
 
+  it('maps CSS pointer positions to tiles under any backing scale', () => {
+    const result = camera();
+    result.setPosition(100, 10);
+    const left = result.left;
+    const top = result.top;
+    expect(result.pointerToTile(0, 0, 1)).toEqual({ x: Math.floor(left), y: Math.floor(top) });
+    // 96 CSS px at scale 1 and 192 CSS px at scale 0.5 both land two tiles right.
+    expect(result.pointerToTile(96, 0, 1).x).toBe(Math.floor(left) + 2);
+    expect(result.pointerToTile(192, 0, 0.5).x).toBe(Math.floor(left) + 2);
+  });
+
   it('interpolates between fixed steps and is exact at the endpoints', () => {
     const result = camera();
     result.setPosition(100, 10);

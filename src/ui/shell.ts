@@ -207,6 +207,10 @@ export class Shell {
   private startGame(world: World, meta: WorldMeta, loaded: LoadedState | null): void {
     this.create.setGenerating(false, meta.seed);
     this.create.hide();
+    // Defensive: never leak a previous game's loop, observers or listeners.
+    this.stopAutosave();
+    this.game?.dispose();
+    this.game = null;
     this.game = new Game(this.canvas, this.uiRoot, this.ctx, world, {
       mode: loaded?.mode ?? meta.mode,
       saved: loaded,

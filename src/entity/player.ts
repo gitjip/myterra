@@ -43,6 +43,10 @@ export class Player {
   /** Movement multiplier (e.g. slowed while charging a bow). */
   public moveScale = 1;
   public canFly: boolean;
+  /** Ability flags mirrored from the mode each step; defaults match survival. */
+  public hasHunger = true;
+  public hasBreath = true;
+  public invulnerable = false;
 
   private jumpHeld = false;
   private prevX: number;
@@ -100,7 +104,7 @@ export class Player {
 
   /** Enemy/contact damage with knockback. Ignored while invulnerable or dead. */
   public hurt(damage: number, knockbackX: number, knockbackY: number): boolean {
-    if (this.dead || this.invulnTimer > 0) return false;
+    if (this.dead || this.invulnerable || this.invulnTimer > 0) return false;
     const reduction = clamp(this.armorReduction, 0, COMBAT.armorReductionCap);
     const applied = Math.max(1, Math.round((damage * (100 - reduction)) / 100));
     this.health = clamp(this.health - applied, 0, SURVIVAL.maxHealth);
@@ -187,13 +191,29 @@ export class Player {
   private updateSurvival(world: World, dt: number): void {
     this.headInWater = headInLiquid(world, this.body);
 
-    if (this.headInWater) {
-      this.breath = Math.max(0, this.breath - SURVIVAL.breathDrainPerSecond * dt);
+    if (this.hasBreath) {
+      if (this.headInWater) {
+        this.breath = Math.max(0, this.breath - SURVIVAL.breathDrainPerSecond * dt);
+      } else {
+        this.breath = Math.min(
+          SURVIVAL.maxBreath,
+          this.breath + SURVIVAL.breathRegenPerSecond * dt,
+        );
+      }
     } else {
-      this.breath = Math.min(SURVIVAL.maxBreath, this.breath + SURVIVAL.breathRegenPerSecond * dt);
+      this.breath = SURVIVAL.maxBreath;
     }
 
-    this.hunger = Math.max(0, this.hunger - SURVIVAL.hungerDrainPerSecond * dt);
+    if (this.hasHunger) {
+      this.hunger = Math.max(0, this.hunger - SURVIVAL.hungerDrainPerSecond * dt);
+    } else {
+      this.hunger = SURVIVAL.maxHunger;
+    }
+
+    if (this.invulnerable) {
+      this.health = SURVIVAL.maxHealth;
+      return;
+    }
 
     if (this.hunger > SURVIVAL.regenHungerThreshold && this.health < SURVIVAL.maxHealth) {
       this.health = Math.min(SURVIVAL.maxHealth, this.health + SURVIVAL.regenPerSecond * dt);

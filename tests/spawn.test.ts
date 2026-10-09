@@ -4,7 +4,7 @@ import { EnemyKind } from '../src/data/enemies';
 import { TileId } from '../src/data/tiles';
 import { ENTITY, WORLD } from '../src/data/tuning';
 import { Enemy } from '../src/entity/enemy';
-import { canSpawnAt, findSpawnSpot, SpawnSystem } from '../src/systems/spawn';
+import { canSpawnAt, findSpawnSpot, pickEnemyKind, SpawnSystem } from '../src/systems/spawn';
 import { LiquidType, World } from '../src/world/world';
 
 function arena(): World {
@@ -37,6 +37,37 @@ describe('spawn conditions', () => {
   it('finds a spot near a column', () => {
     const world = arena();
     expect(findSpawnSpot(world, 20, 8, 0)).toBe(10);
+  });
+});
+
+describe('enemy kind selection', () => {
+  function sample(spotY: number, dayFactor: number): Set<EnemyKind> {
+    const rng = new Rng(7);
+    const kinds = new Set<EnemyKind>();
+    for (let i = 0; i < 400; i++) kinds.add(pickEnemyKind(rng, spotY, dayFactor));
+    return kinds;
+  }
+
+  it('spawns spiders in deep caves but never skeletons', () => {
+    const kinds = sample(40, 1);
+    expect(kinds.has(EnemyKind.Spider)).toBe(true);
+    expect(kinds.has(EnemyKind.Zombie)).toBe(true);
+    expect(kinds.has(EnemyKind.Skeleton)).toBe(false);
+    expect(kinds.has(EnemyKind.Slime)).toBe(false);
+  });
+
+  it('spawns skeletons on dark surface ground', () => {
+    const kinds = sample(10, 0);
+    expect(kinds.has(EnemyKind.Skeleton)).toBe(true);
+    expect(kinds.has(EnemyKind.Zombie)).toBe(true);
+    expect(kinds.has(EnemyKind.Spider)).toBe(false);
+  });
+
+  it('spawns only zombies and slimes in the day', () => {
+    const kinds = sample(10, 1);
+    expect(kinds.has(EnemyKind.Slime)).toBe(true);
+    expect(kinds.has(EnemyKind.Skeleton)).toBe(false);
+    expect(kinds.has(EnemyKind.Spider)).toBe(false);
   });
 });
 

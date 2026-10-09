@@ -85,6 +85,18 @@ describe('Inventory', () => {
     expect(inventory.selected).toBe(3);
   });
 
+  it('adds to the selected hotbar slot first', () => {
+    const inventory = new Inventory(12);
+    inventory.select(3);
+    expect(inventory.addToHotbar(ItemId.Stone, 5)).toBe(0);
+    expect(inventory.getSlot(3)).toEqual({ item: ItemId.Stone, count: 5 });
+
+    // Overflows into the next empty slot once the selected stack is full.
+    inventory.addToHotbar(ItemId.Stone, 1200);
+    expect(inventory.getSlot(3)?.count).toBe(itemDefinition(ItemId.Stone).stackMax);
+    expect(inventory.countOf(ItemId.Stone)).toBe(1205);
+  });
+
   it('emits a single bulk event when restoring a save', () => {
     const inventory = new Inventory(12);
     let changes = 0;

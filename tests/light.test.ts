@@ -106,6 +106,47 @@ describe('light', () => {
     expect(displayBrightness(world, 10, 3, 1)).toBe(0);
   });
 
+  it('does not light the world edge from the unlit outer buffer', () => {
+    const world = new World({ reachWidth: WORLD.minReachWidth });
+    for (let x = 0; x <= 5; x++) {
+      for (let y = 0; y <= 10; y++) world.setTile(x, y, TileId.Stone);
+    }
+    world.clearDirty();
+    const light = new LightSystem(world);
+    light.fullRelight();
+    // The buffer column just left of x=0 is never scanned, so it stays dark and
+    // the border rock is not brightened by it.
+    expect(world.skyDepth[world.idx(-1, 5)]).toBe(255);
+    expect(displayBrightness(world, 0, 5, 1)).toBe(0);
+  });
+
+  it('spreads a large removal across frames under a tight budget', () => {
+    const { world, light } = sealedWorld();
+    world.setTile(15, 7, TileId.Torch);
+    relight(light, 15, 7);
+    expect(world.blockLight[world.idx(16, 7)]).toBe(LIGHT.torchLight - 1);
+
+    world.setTile(15, 7, TileId.Air);
+    light.markChanged(15, 7);
+    light.update(0);
+    expect(world.blockLight[world.idx(16, 7)]).toBe(LIGHT.torchLight - 1);
+
+    light.update();
+    expect(world.blockLight[world.idx(15, 7)]).toBe(0);
+    expect(world.blockLight[world.idx(16, 7)]).toBe(0);
+  });
+
+  it('bumps its version whenever the light arrays change', () => {
+    const { world, light } = sealedWorld();
+    const before = light.version;
+    world.setTile(15, 7, TileId.Torch);
+    relight(light, 15, 7);
+    expect(light.version).toBeGreaterThan(before);
+    const after = light.version;
+    light.update();
+    expect(light.version).toBe(after);
+  });
+
   it('spreads an incremental full relight across calls and matches the sync one', () => {
     const { world: source } = sealedWorld();
     source.setTile(15, 5, TileId.Torch);

@@ -112,6 +112,8 @@ export const LIGHT = {
   attenuationSolid: 1,
   /** Enemies only spawn where combined light is at or below this. */
   spawnLightThreshold: 100,
+  /** Day factor at or below which a surface spawn is treated as night. */
+  surfaceNightDayFactor: 0.5,
   maxLight: 255,
 } as const;
 
@@ -281,6 +283,8 @@ export const ENTITY = {
   spawnIntervalSeconds: 3,
   /** Candidate columns tried per spawn attempt. */
   spawnAttempts: 8,
+  /** Ground rows below the surface at which a spawn counts as a cave spawn. */
+  caveSpawnDepth: 24,
   /** Radius around the player that sweeps up dropped items, tiles. */
   pickupRadius: 2,
   pickupLifetimeSeconds: 300,

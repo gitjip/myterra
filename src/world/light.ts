@@ -1,6 +1,6 @@
 import { clamp } from '../core/math';
 import { tileDefinition, tileIdFromByte, TileId } from '../data/tiles';
-import { LIGHT } from '../data/tuning';
+import { LIGHT, WORLD } from '../data/tuning';
 import { liquidTypeFromByte, LiquidType } from './world';
 import type { World } from './world';
 
@@ -73,6 +73,8 @@ export class LightSystem {
   private statDirty = 0;
   private statMs = 0;
   private relightPending = false;
+  /** Bumped whenever light arrays change, so render caches can invalidate. */
+  private versionValue = 0;
   /** Incremental full-relight phase: 0 idle, 1 columns, 2 sky, 3 sources, 4 block. */
   private rlPhase = 0;
   private rlColumn = 0;
@@ -80,12 +82,22 @@ export class LightSystem {
 
   public constructor(private readonly world: World) {}
 
+  /** Left/right reachable columns; the buffer margins are never lit. */
+  private get reachXMax(): number {
+    return this.world.reachWidth - 1;
+  }
+
   public get stats(): LightStats {
     return { dirty: this.statDirty, nodes: this.statNodes, ms: this.statMs };
   }
 
   public get isRelightPending(): boolean {
     return this.relightPending;
+  }
+
+  /** Monotonic counter bumped on every change to the light arrays. */
+  public get version(): number {
+    return this.versionValue;
   }
 
   /** Queues a cell for relighting. Called from world edit events. */
@@ -102,8 +114,8 @@ export class LightSystem {
     world.blockLight.fill(0);
     this.clearQueues();
 
-    const { width, xMin, xMax, yMin, yMax } = world;
-    for (let x = xMin; x <= xMax; x++) {
+    const { width, xMin, yMin, yMax } = world;
+    for (let x = 0; x <= this.reachXMax; x++) {
       const col = x - xMin;
       for (let y: number = yMin; y <= yMax; y++) {
         const idx = (y - yMin) * width + col;
@@ -129,6 +141,7 @@ export class LightSystem {
     this.statNodes = this.nodeCount;
     this.statDirty = 0;
     this.statMs = performance.now() - started;
+    this.versionValue++;
   }
 
   /**
@@ -139,7 +152,7 @@ export class LightSystem {
     this.world.skyDepth.fill(255);
     this.world.blockLight.fill(0);
     this.clearQueues();
-    this.rlColumn = this.world.xMin;
+    this.rlColumn = 0;
     this.rlSourceCursor = 0;
     this.rlPhase = 1;
     this.relightPending = true;
@@ -147,14 +160,15 @@ export class LightSystem {
 
   private updateFullRelight(started: number, budgetMs: number): void {
     const within = (): boolean => performance.now() - started < budgetMs;
-    const { xMin, xMax, width, yMax } = this.world;
+    const { xMin, width, yMax } = this.world;
     const cells = this.world.fg.length;
+    const reachXMax = this.reachXMax;
 
     if (this.rlPhase === 1) {
-      for (; this.rlColumn <= xMax && within(); this.rlColumn++) {
+      for (; this.rlColumn <= reachXMax && within(); this.rlColumn++) {
         this.scanRelightColumn(this.rlColumn, xMin, width, yMax);
       }
-      if (this.rlColumn > xMax) {
+      if (this.rlColumn > reachXMax) {
         this.rlSourceCursor = 0;
         this.rlPhase = 2;
       }
@@ -198,6 +212,7 @@ export class LightSystem {
     this.statNodes = this.nodeCount;
     this.statDirty = 0;
     this.statMs = performance.now() - started;
+    this.versionValue++;
   }
 
   private scanRelightColumn(x: number, xMin: number, width: number, yMax: number): void {
@@ -223,10 +238,10 @@ export class LightSystem {
       this.dirtyColumns.size > 0 ||
       this.skyRemove.length > 0 ||
       this.blockRemove.length > 0 ||
+      this.changed.length > 0 ||
       this.skyMin <= 255 ||
       this.blockMax > 0;
     if (!hasWork) {
-      this.statNodes = 0;
       this.statDirty = 0;
       this.statMs = performance.now() - started;
       return this.stats;
@@ -237,20 +252,28 @@ export class LightSystem {
     for (const idx of this.dirtyCells) {
       const level = this.world.blockLight[idx] ?? 0;
       if (level > 0) this.blockRemove.push({ i: idx, level });
+      this.changed.push(idx);
     }
     this.statDirty = this.dirtyCells.size;
-    this.changed = [...this.dirtyCells];
     this.dirtyCells.clear();
     this.dirtyColumns.clear();
 
-    this.runSkyRemove();
-    this.runBlockRemove();
+    const removed = this.runSkyRemove(started, budgetMs) && this.runBlockRemove(started, budgetMs);
+    if (!removed) {
+      this.statNodes = this.nodeCount;
+      this.statMs = performance.now() - started;
+      this.versionValue++;
+      return this.stats;
+    }
+
     this.seedAdditions();
+    this.changed = [];
     this.runSkyAdd(started, budgetMs);
     this.runBlockAdd(started, budgetMs);
 
     this.statNodes = this.nodeCount;
     this.statMs = performance.now() - started;
+    this.versionValue++;
     return this.stats;
   }
 
@@ -289,15 +312,15 @@ export class LightSystem {
   }
 
   private forEachNeighbour(idx: number, fn: (n: number) => void): void {
-    const { width, xMin, xMax, yMin, yMax } = this.world;
+    const { width, xMin, yMin } = this.world;
     const col = idx % width;
     const row = (idx - col) / width;
     const x = xMin + col;
     const y = yMin + row;
-    if (x > xMin) fn(idx - 1);
-    if (x < xMax) fn(idx + 1);
-    if (y > yMin) fn(idx - width);
-    if (y < yMax) fn(idx + width);
+    if (x > 0) fn(idx - 1);
+    if (x < this.reachXMax) fn(idx + 1);
+    if (y > WORLD.yReachMin) fn(idx - width);
+    if (y < WORLD.yReachMax) fn(idx + width);
   }
 
   private hasDarkerNeighbour(idx: number): boolean {
@@ -360,8 +383,9 @@ export class LightSystem {
     }
   }
 
-  private runSkyRemove(): void {
+  private runSkyRemove(started = 0, budgetMs = Number.POSITIVE_INFINITY): boolean {
     while (this.skyRemove.length > 0) {
+      if (performance.now() - started >= budgetMs) return false;
       const entry = this.skyRemove.pop();
       if (!entry) break;
       this.nodeCount++;
@@ -381,10 +405,12 @@ export class LightSystem {
         }
       });
     }
+    return true;
   }
 
-  private runBlockRemove(): void {
+  private runBlockRemove(started = 0, budgetMs = Number.POSITIVE_INFINITY): boolean {
     while (this.blockRemove.length > 0) {
+      if (performance.now() - started >= budgetMs) return false;
       const entry = this.blockRemove.pop();
       if (!entry) break;
       this.nodeCount++;
@@ -401,6 +427,7 @@ export class LightSystem {
         }
       });
     }
+    return true;
   }
 
   private seedAdditions(): void {

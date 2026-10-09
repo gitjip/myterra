@@ -1,7 +1,7 @@
 import { chebyshev } from '../core/math';
 import type { Rng } from '../core/rng';
 import { ENEMIES, EnemyKind } from '../data/enemies';
-import { ENTITY, LIGHT } from '../data/tuning';
+import { ENTITY, GEN, LIGHT } from '../data/tuning';
 import { Enemy } from '../entity/enemy';
 import type { World } from '../world/world';
 
@@ -42,6 +42,21 @@ export function findSpawnSpot(
   return null;
 }
 
+/**
+ * Picks an enemy kind from the spawn context. Underground spots favour spiders,
+ * dark surface spots (night) favour skeletons, everything else is zombie/slime.
+ */
+export function pickEnemyKind(rng: Rng, spotY: number, dayFactor: number): EnemyKind {
+  const depth = spotY - GEN.surfaceY;
+  if (depth >= ENTITY.caveSpawnDepth) {
+    return rng.chance(0.5) ? EnemyKind.Spider : EnemyKind.Zombie;
+  }
+  if (dayFactor <= LIGHT.surfaceNightDayFactor) {
+    return rng.chance(0.35) ? EnemyKind.Skeleton : EnemyKind.Zombie;
+  }
+  return rng.chance(0.5) ? EnemyKind.Zombie : EnemyKind.Slime;
+}
+
 /** Spawns and despawns enemies around the player. */
 export class SpawnSystem {
   private timer = ENTITY.spawnIntervalSeconds;
@@ -77,7 +92,7 @@ export class SpawnSystem {
         Math.round(playerX) + this.rng.nextIntRange(-this.simulateRadius, this.simulateRadius + 1);
       const spot = findSpawnSpot(world, x, Math.round(playerY), dayFactor);
       if (spot === null) continue;
-      const kind = this.rng.chance(0.5) ? EnemyKind.Zombie : EnemyKind.Slime;
+      const kind = pickEnemyKind(this.rng, spot, dayFactor);
       enemies.push(new Enemy(kind, x, spot - ENEMIES[kind].height));
       break;
     }

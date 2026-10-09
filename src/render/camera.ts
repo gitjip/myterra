@@ -179,6 +179,21 @@ export class Camera {
     };
   }
 
+  /**
+   * Maps a CSS-pixel pointer position to a tile, given the canvas backing scale
+   * (`canvas.width / canvas.clientWidth`, i.e. devicePixelRatio * resolutionScale).
+   */
+  public pointerToTile(
+    cssX: number,
+    cssY: number,
+    backingScale: number,
+  ): { x: number; y: number } {
+    const scale = TILE.px * this.zoomValue;
+    const worldX = this.left + (cssX * backingScale) / scale;
+    const worldY = this.top + (cssY * backingScale) / scale;
+    return { x: Math.floor(worldX), y: Math.floor(worldY) };
+  }
+
   public get left(): number {
     return this.renderCenterX - this.viewportWorldWidth / 2;
   }

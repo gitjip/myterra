@@ -158,6 +158,11 @@ export class InventoryPanel {
   }
 
   public bind(inventory: Inventory, chest: InventorySlot[] | null): void {
+    if (this.inventory && this.inventory !== inventory && this.cursorStack) {
+      this.inventory.addItem(this.cursorStack.item, this.cursorStack.count);
+      this.cursorStack = null;
+      this.paintCursor();
+    }
     this.inventory = inventory;
     this.chest = chest;
     this.chestWrap.style.display = chest ? 'block' : 'none';

@@ -125,23 +125,38 @@ export class WorldGenerator {
   }
 }
 
-/** First reachable column with three air rows above solid ground. */
+/**
+ * Best spawn column, searched outward from the middle so a new world never
+ * spawns the player against the world edge.
+ */
 export function findSpawn(world: World): SpawnPoint {
-  for (let x = 0; x < world.reachWidth; x++) {
-    for (let y: number = WORLD.yReachMin; y <= WORLD.yReachMax; y++) {
-      if (!world.isSolid(x, y)) continue;
-      const tile = world.getTile(x, y);
-      if (
-        SURFACE_TILES.has(tile) &&
-        y - 3 >= WORLD.yReachMin &&
-        !world.isSolid(x, y - 1) &&
-        !world.isSolid(x, y - 2) &&
-        !world.isSolid(x, y - 3)
-      ) {
-        return { x, y };
-      }
-      break;
+  const centre = Math.floor(world.reachWidth / 2);
+  for (let radius = 0; radius < world.reachWidth; radius++) {
+    const candidates = radius === 0 ? [centre] : [centre + radius, centre - radius];
+    for (const x of candidates) {
+      if (x < 0 || x >= world.reachWidth) continue;
+      const y = spawnRowInColumn(world, x);
+      if (y !== null) return { x, y };
     }
   }
-  return { x: 0, y: GEN.surfaceY };
+  return { x: centre, y: GEN.surfaceY };
+}
+
+/** First reachable surface row with three air rows above solid ground, or null. */
+function spawnRowInColumn(world: World, x: number): number | null {
+  for (let y: number = WORLD.yReachMin; y <= WORLD.yReachMax; y++) {
+    if (!world.isSolid(x, y)) continue;
+    const tile = world.getTile(x, y);
+    if (
+      SURFACE_TILES.has(tile) &&
+      y - 3 >= WORLD.yReachMin &&
+      !world.isSolid(x, y - 1) &&
+      !world.isSolid(x, y - 2) &&
+      !world.isSolid(x, y - 3)
+    ) {
+      return y;
+    }
+    break;
+  }
+  return null;
 }

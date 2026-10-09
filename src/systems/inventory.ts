@@ -72,6 +72,27 @@ export class Inventory {
     this.emitter.emit('select', wrapped);
   }
 
+  /**
+   * Adds items preferring the currently selected hotbar slot, so creative
+   * picks are usable immediately. Returns the leftover that did not fit.
+   */
+  public addToHotbar(item: ItemId, count = 1): number {
+    if (count <= 0) return 0;
+    const index = this.selectedIndex;
+    const slot = this.slots[index];
+    if (!slot || slot.item === item) {
+      const max = itemDefinition(item).stackMax;
+      const room = slot ? max - slot.count : max;
+      const placed = Math.min(room, count);
+      if (placed > 0) {
+        this.slots[index] = { item, count: (slot?.count ?? 0) + placed };
+        this.emitter.emit('change', index);
+        count -= placed;
+      }
+    }
+    return count > 0 ? this.addItem(item, count) : 0;
+  }
+
   /** Adds items, filling existing stacks first. Returns the leftover that did not fit. */
   public addItem(item: ItemId, count = 1): number {
     if (count <= 0) return 0;

@@ -568,6 +568,12 @@ Sections: 每段 = u8 tag + u32 byteLength + payload
     - 滚轮在**两种模式**下都切换快捷栏（创造不再有自己的方块调色环）；创造面板一键发放的物品进入物品栏，放置时 `infinitePlace` 只跳过消耗，不再凭空生成瓦片。
     - 启动的液体活跃区重建改为**分帧 `rebuildActiveIncremental`**，避免大世界加载时一次性阻塞首帧。
     - 一并修正 P2 隐藏问题：`drawnTiles` 仅在叠层可见时统计、光照叠层按 `cacheKey` 命中跳过重算、玩家击退统一为置位、`inventory.restore` 单次 `bulk` 事件、按键重绑后失焦活动元素。
+14. **M13 代码审查修复（2026-10-09）**：
+    - **能力标志生效**：`Player.updateSurvival` 读取 `hasHunger`/`hasBreath`/`invulnerable`（默认同生存），`Game` 每步与切模式时同步；`F6` 走 `setMode`。创造模式不再饿死/淹死/烧死，`hurt` 对无敌直接拒绝。
+    - **敌人种类投放**：`spawn.ts` 新增 `pickEnemyKind`，按深度与昼夜加权——深处洞穴出蜘蛛、黑暗地表（夜）出骷髅、白天出僵尸/史莱姆；相关阈值放 `ENTITY.caveSpawnDepth`、`LIGHT.surfaceNightDayFactor`。
+    - **世界边界光照**：光照只作用于可达范围（`light.ts` 的 BFS/列扫描/增量全量重算都以可达边界为界，`lightOverlay` 同样裁剪），缓冲区不再被点亮，消除左右边界的发亮缝隙。出生点改为从世界中心向外寻找。
+    - **光照健壮性**：`LightSystem.version` 随光照数组变化自增并进入叠层缓存键（液体变化不再导致光照过期）；`runSkyRemove`/`runBlockRemove` 纳入帧预算，超预算时推迟到下一帧；空闲帧不再清零 `statNodes`。
+    - **输入与 UI**：`tileAtMouse` 用 `canvas.width / clientWidth`（含分辨率缩放）换算，修复缩放≠1 时的瞄准偏移；创造面板发放物品优先进入当前快捷栏槽位，创造新世界不再发放生存起始包；`Shell.startGame` 先释放旧 `Game`；`InventoryPanel.bind` 换绑时归还光标堆叠。
 
 ## 20. 明确排除（v1 不做）
 
@@ -1332,5 +1338,5 @@ Medium 20 敌人 + 100 弹幕 ...
 | M10 战斗与敌人 | ✅ 已完成 | `feat(m10): add melee combat, enemies and spawning` | 2026-10-08 |
 | M11 生存闭环与被动生物 | ✅ 已完成 | `feat(m11): add death/respawn, food and passive rabbits` | 2026-10-08 |
 | M12 内容扩展 | ✅ 已完成 | 批次 A–D（内容/UI/分帧光照/校验），见提交历史 | 2026-10-09 |
-| M13 UI/设置/完整创造 | ✅ 已完成 | 暂停菜单/设置/创造面板/能力标志生效，见提交历史 | 2026-10-09 |
+| M13 UI/设置/完整创造 | ✅ 已完成 | 暂停菜单/设置/创造面板/能力标志生效 + 代码审查修复，见提交历史 | 2026-10-09 |
 | M14 发布 | ⬜ 未开始 | — | — |

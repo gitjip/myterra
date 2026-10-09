@@ -114,4 +114,25 @@ describe('player', () => {
     expect(player.body.x).toBe(12);
     expect(player.body.y).toBe(4);
   });
+
+  it('ignores starvation, drowning and lava when invulnerable', () => {
+    const { player, world } = wetPlayer();
+    player.invulnerable = true;
+    player.hasHunger = false;
+    player.hasBreath = false;
+    player.hunger = 0;
+    player.health = 30;
+    simulate(player, world, 30, NEUTRAL_INPUT);
+    expect(player.dead).toBe(false);
+    expect(player.health).toBe(SURVIVAL.maxHealth);
+    expect(player.hunger).toBe(SURVIVAL.maxHunger);
+    expect(player.breath).toBe(SURVIVAL.maxBreath);
+  });
+
+  it('does not take contact damage while invulnerable', () => {
+    const { player } = dryPlayer();
+    player.invulnerable = true;
+    expect(player.hurt(50, 0, 0)).toBe(false);
+    expect(player.health).toBe(SURVIVAL.maxHealth);
+  });
 });

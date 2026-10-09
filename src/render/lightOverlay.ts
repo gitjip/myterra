@@ -1,4 +1,4 @@
-import { TILE } from '../data/tuning';
+import { TILE, WORLD } from '../data/tuning';
 import { displayBrightness } from '../world/light';
 import type { World } from '../world/world';
 import type { Camera } from './camera';
@@ -28,18 +28,19 @@ export class LightOverlay {
     camera: Camera,
     world: World,
     dayFactor: number,
+    lightVersion: number,
   ): void {
     const view = camera.visibleRect();
-    const minX = Math.max(world.xMin, view.minX);
-    const maxX = Math.min(world.xMax, view.maxX);
-    const minY = Math.max(world.yMin, view.minY);
-    const maxY = Math.min(world.yMax, view.maxY);
+    const minX = Math.max(0, view.minX);
+    const maxX = Math.min(world.reachWidth - 1, view.maxX);
+    const minY = Math.max(WORLD.yReachMin, view.minY);
+    const maxY = Math.min(WORLD.yReachMax, view.maxY);
     const w = maxX - minX + 1;
     const h = maxY - minY + 1;
     if (w <= 0 || h <= 0) return;
 
     const key =
-      `${world.revision}|${camera.left.toFixed(3)}|${camera.top.toFixed(3)}|` +
+      `${world.revision}|${lightVersion}|${camera.left.toFixed(3)}|${camera.top.toFixed(3)}|` +
       `${Math.round(dayFactor * 255)}|${minX},${minY},${w},${h}`;
 
     if (w !== this.width || h !== this.height || !this.image) {

@@ -162,8 +162,8 @@ export class Game {
     this.spawnY = options.saved?.spawnY ?? spawn.y;
     this.player = new Player(spawn.x - PLAYER.width / 2, spawn.y - PLAYER.height);
     this.mode = new Mode(options.mode ?? 'survival');
-    this.player.canFly = this.mode.flags.canFly;
-    if (!options.saved?.inventory) this.seedInventory();
+    this.syncPlayerAbilities();
+    if (!options.saved?.inventory && (options.mode ?? 'survival') === 'survival') this.seedInventory();
     this.applyLoaded(options.saved ?? null);
     this.camera = new Camera(this.world);
     this.camera.setPosition(this.player.centreX, this.player.centreY);
@@ -222,7 +222,7 @@ export class Game {
       this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
     };
     this.creativePanel.onPick = (item) => {
-      const leftover = this.inventory.addItem(item, itemDefinition(item).stackMax);
+      const leftover = this.inventory.addToHotbar(item, itemDefinition(item).stackMax);
       if (leftover > 0) this.toast(`${itemDefinition(item).name}: inventory full`);
     };
 
@@ -321,6 +321,9 @@ export class Game {
     const input = this.input.state;
     const flags = this.mode.flags;
     this.player.canFly = flags.canFly;
+    this.player.invulnerable = flags.invulnerable;
+    this.player.hasHunger = flags.hasHunger;
+    this.player.hasBreath = flags.hasBreath;
 
     const day = advanceDay(this.timeOfDay, this.dayCount, dt);
     this.timeOfDay = day.timeOfDay;
@@ -566,7 +569,7 @@ export class Game {
       this.overlay.visible,
     );
     this.particles.render(this.ctx, this.camera);
-    this.lightOverlay.render(this.ctx, this.camera, this.world, this.light.dayFactor);
+    this.lightOverlay.render(this.ctx, this.camera, this.world, this.light.dayFactor, this.light.version);
     this.damageNumbers.render(this.ctx, this.camera);
     const highlight = this.interaction.mining
       ? { x: this.interaction.miningTargetX, y: this.interaction.miningTargetY }
@@ -768,11 +771,8 @@ export class Game {
   }
 
   private tileAtMouse(mouseX: number, mouseY: number): { x: number; y: number } {
-    const dpr = window.devicePixelRatio || 1;
-    const scale = TILE.px * this.camera.zoom;
-    const worldX = this.camera.left + (mouseX * dpr) / scale;
-    const worldY = this.camera.top + (mouseY * dpr) / scale;
-    return { x: Math.floor(worldX), y: Math.floor(worldY) };
+    const backingScale = this.canvas.width / Math.max(1, this.canvas.clientWidth);
+    return this.camera.pointerToTile(mouseX, mouseY, backingScale);
   }
 
   private toggleInventory(): void {
@@ -812,10 +812,18 @@ export class Game {
 
   private setMode(name: ModeName): void {
     this.mode.set(name);
-    this.player.canFly = this.mode.flags.canFly;
+    this.syncPlayerAbilities();
     if (name !== 'creative') this.creativePanel?.set(false);
     this.hud.setSurvival(name === 'survival');
     this.hud.showItemName(name === 'creative' ? 'Creative Mode' : 'Survival Mode');
+  }
+
+  private syncPlayerAbilities(): void {
+    const flags = this.mode.flags;
+    this.player.canFly = flags.canFly;
+    this.player.invulnerable = flags.invulnerable;
+    this.player.hasHunger = flags.hasHunger;
+    this.player.hasBreath = flags.hasBreath;
   }
 
   private setPaused(paused: boolean): void {
@@ -1184,9 +1192,7 @@ export class Game {
   }
 
   private toggleMode(): void {
-    const name = this.mode.toggle();
-    this.player.canFly = this.mode.flags.canFly;
-    this.hud.showItemName(name === 'creative' ? 'Creative Mode' : 'Survival Mode');
+    this.setMode(this.mode.toggle());
   }
 
   /** Debug: spill a little water at the aimed tile until M10 adds buckets. */

@@ -847,20 +847,7 @@ export class Game {
   private toast(message: string): void {
     const element = document.createElement('div');
     element.textContent = message;
-    Object.assign(element.style, {
-      position: 'fixed',
-      left: '50%',
-      top: '16px',
-      transform: 'translateX(-50%)',
-      padding: '6px 12px',
-      background: 'rgba(20, 24, 36, 0.95)',
-      border: '1px solid #2a2f45',
-      borderRadius: '4px',
-      color: '#f0d58c',
-      zIndex: '3000',
-      pointerEvents: 'none',
-      font: '13px ui-monospace, Menlo, Consolas, monospace',
-    } satisfies Partial<CSSStyleDeclaration>);
+    element.className = 'mt-toast';
     this.uiRoot.append(element);
     window.setTimeout(() => {
       element.remove();

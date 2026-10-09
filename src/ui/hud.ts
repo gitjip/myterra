@@ -33,84 +33,32 @@ export class Hud {
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
-    Object.assign(this.root.style, {
-      position: 'fixed',
-      left: '50%',
-      bottom: '12px',
-      transform: 'translateX(-50%)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '6px',
-      pointerEvents: 'none',
-      font: '12px/1.4 ui-monospace, Menlo, Consolas, monospace',
-      color: '#d7dceb',
-      zIndex: '900',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.root.className = 'mt-hud';
 
     const bars = document.createElement('div');
-    Object.assign(bars.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '3px',
-    } satisfies Partial<CSSStyleDeclaration>);
+    bars.className = 'mt-bars';
     this.health = this.createBar(bars, 'HP', '#e05a5a', SURVIVAL.maxHealth);
     this.hunger = this.createBar(bars, 'FO', '#d9923b', SURVIVAL.maxHunger);
     this.breath = this.createBar(bars, 'BR', '#4aa3e0', SURVIVAL.maxBreath);
 
     this.itemName = document.createElement('div');
-    Object.assign(this.itemName.style, {
-      minHeight: '15px',
-      opacity: '0',
-      transition: `opacity ${ITEM_NAME_FADE_SECONDS}s linear`,
-      textShadow: '0 1px 2px #000',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.itemName.className = 'mt-item-name';
 
     const hotbar = document.createElement('div');
-    Object.assign(hotbar.style, {
-      display: 'flex',
-      gap: '4px',
-    } satisfies Partial<CSSStyleDeclaration>);
+    hotbar.className = 'mt-hotbar';
     for (let i = 0; i < INVENTORY.hotbar; i++) {
       const slot = document.createElement('div');
-      Object.assign(slot.style, {
-        position: 'relative',
-        width: '40px',
-        height: '40px',
-        background: 'rgba(6, 8, 14, 0.6)',
-        border: '1px solid #2a2f45',
-        borderRadius: '3px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      } satisfies Partial<CSSStyleDeclaration>);
+      slot.className = 'mt-hotbar-slot';
 
       const label = document.createElement('span');
-      Object.assign(label.style, {
-        fontSize: '9px',
-        color: '#e6e9f2',
-        textAlign: 'center',
-        lineHeight: '1.1',
-      } satisfies Partial<CSSStyleDeclaration>);
+      label.className = 'mt-slot-label';
 
       const number = document.createElement('span');
       number.textContent = String((i + 1) % 10);
-      Object.assign(number.style, {
-        position: 'absolute',
-        left: '3px',
-        top: '1px',
-        fontSize: '9px',
-        color: '#6b7391',
-      } satisfies Partial<CSSStyleDeclaration>);
+      number.className = 'mt-slot-index';
 
       const count = document.createElement('span');
-      Object.assign(count.style, {
-        position: 'absolute',
-        right: '3px',
-        bottom: '1px',
-        fontSize: '9px',
-        color: '#f0d58c',
-      } satisfies Partial<CSSStyleDeclaration>);
+      count.className = 'mt-slot-count';
 
       slot.append(label, number, count);
       hotbar.append(slot);
@@ -180,7 +128,7 @@ export class Hud {
       const count = this.slotCounts[i];
       if (!slot || !label || !count) continue;
       const stack = inventory.getSlot(i);
-      slot.style.borderColor = i === inventory.selected ? '#d7dceb' : '#2a2f45';
+      slot.classList.toggle('mt-hotbar-slot--selected', i === inventory.selected);
       if (stack) {
         label.textContent = shortLabel(itemDefinition(stack.item).name);
         count.textContent = stack.count > 1 ? String(stack.count) : '';
@@ -193,36 +141,18 @@ export class Hud {
 
   private createBar(parent: HTMLElement, label: string, color: string, max: number): Bar {
     const row = document.createElement('div');
-    Object.assign(row.style, {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-    } satisfies Partial<CSSStyleDeclaration>);
+    row.className = 'mt-bar-row';
 
     const text = document.createElement('span');
     text.textContent = label;
-    Object.assign(text.style, {
-      width: '22px',
-      color: '#8b93b0',
-      fontSize: '10px',
-    } satisfies Partial<CSSStyleDeclaration>);
+    text.className = 'mt-bar-label';
 
     const track = document.createElement('div');
-    Object.assign(track.style, {
-      width: '160px',
-      height: '10px',
-      background: 'rgba(6, 8, 14, 0.72)',
-      border: '1px solid #2a2f45',
-      borderRadius: '3px',
-      overflow: 'hidden',
-    } satisfies Partial<CSSStyleDeclaration>);
+    track.className = 'mt-bar';
 
     const fill = document.createElement('div');
-    Object.assign(fill.style, {
-      width: '100%',
-      height: '100%',
-      background: color,
-    } satisfies Partial<CSSStyleDeclaration>);
+    fill.className = 'mt-bar__fill';
+    fill.style.background = color;
 
     track.append(fill);
     row.append(text, track);

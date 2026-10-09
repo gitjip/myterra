@@ -9,39 +9,6 @@ export interface WorldConfig {
   readonly mode: ModeName;
 }
 
-const PANEL: Partial<CSSStyleDeclaration> = {
-  position: 'fixed',
-  inset: '0',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'radial-gradient(circle at 50% 30%, #10131f 0%, #07080d 70%)',
-  color: '#d7dceb',
-  font: '14px/1.6 ui-monospace, Menlo, Consolas, monospace',
-  zIndex: '2000',
-};
-
-const INPUT: Partial<CSSStyleDeclaration> = {
-  width: '220px',
-  padding: '6px 8px',
-  background: '#0e1220',
-  color: '#d7dceb',
-  border: '1px solid #2a2f45',
-  borderRadius: '3px',
-  font: 'inherit',
-};
-
-const BUTTON: Partial<CSSStyleDeclaration> = {
-  padding: '8px 18px',
-  background: '#1a1f2e',
-  color: '#d7dceb',
-  border: '1px solid #2a2f45',
-  borderRadius: '4px',
-  font: 'inherit',
-  cursor: 'pointer',
-};
-
 /** New-world dialog: name, size, seed and mode, then a generation progress bar. */
 export class CreateWorldScreen {
   private readonly root: HTMLDivElement;
@@ -64,22 +31,14 @@ export class CreateWorldScreen {
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
-    Object.assign(this.root.style, PANEL);
+    this.root.className = 'mt-overlay mt-overlay--menu';
 
     this.form = document.createElement('div');
-    Object.assign(this.form.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      padding: '22px 26px',
-      background: 'rgba(10, 12, 20, 0.9)',
-      border: '1px solid #2a2f45',
-      borderRadius: '6px',
-    });
+    this.form.className = 'mt-form';
 
     this.nameInput = this.textInput('My World');
     this.sizeSelect = document.createElement('select');
-    Object.assign(this.sizeSelect.style, INPUT);
+    this.sizeSelect.className = 'mt-select mt-input--field';
     for (const [label, width] of [
       ['Small', WORLD.smallReachWidth],
       ['Medium', WORLD.mediumReachWidth],
@@ -103,7 +62,7 @@ export class CreateWorldScreen {
     this.seedInput = this.textInput('');
     this.seedInput.placeholder = 'random';
     this.modeSelect = document.createElement('select');
-    Object.assign(this.modeSelect.style, INPUT);
+    this.modeSelect.className = 'mt-select mt-input--field';
     for (const [label, value] of [
       ['Survival', 'survival'],
       ['Creative', 'creative'],
@@ -115,19 +74,19 @@ export class CreateWorldScreen {
     }
 
     this.memory = document.createElement('div');
-    Object.assign(this.memory.style, { color: '#8b93b0', fontSize: '12px' });
+    this.memory.className = 'mt-memory';
 
     const buttons = document.createElement('div');
-    Object.assign(buttons.style, { display: 'flex', gap: '10px', marginTop: '6px' });
+    buttons.className = 'mt-buttons';
     this.createButton = document.createElement('button');
     this.createButton.textContent = 'Create';
-    Object.assign(this.createButton.style, BUTTON);
+    this.createButton.className = 'mt-button';
     this.createButton.addEventListener('click', () => {
       this.submit();
     });
     const cancel = document.createElement('button');
     cancel.textContent = 'Back';
-    Object.assign(cancel.style, BUTTON);
+    cancel.className = 'mt-button';
     cancel.addEventListener('click', () => {
       this.onCancel();
     });
@@ -144,32 +103,19 @@ export class CreateWorldScreen {
     );
 
     this.progressTrack = document.createElement('div');
-    Object.assign(this.progressTrack.style, {
-      width: '260px',
-      height: '12px',
-      marginTop: '16px',
-      background: '#0e1220',
-      border: '1px solid #2a2f45',
-      borderRadius: '4px',
-      overflow: 'hidden',
-      display: 'none',
-    });
+    this.progressTrack.className = 'mt-progress';
+    this.progressTrack.style.marginTop = 'calc(16px * var(--ui-scale))';
     this.progressFill = document.createElement('div');
-    Object.assign(this.progressFill.style, {
-      width: '0%',
-      height: '100%',
-      background: '#4aa3e0',
-    });
+    this.progressFill.className = 'mt-progress__fill';
     this.progressTrack.append(this.progressFill);
 
     this.status = document.createElement('div');
-    Object.assign(this.status.style, { marginTop: '10px', color: '#8b93b0' });
+    this.status.className = 'mt-status';
+    this.status.style.marginTop = '10px';
 
     this.cancelGenerating = document.createElement('button');
     this.cancelGenerating.textContent = 'Cancel';
-    Object.assign(this.cancelGenerating.style, BUTTON);
-    this.cancelGenerating.style.marginTop = '12px';
-    this.cancelGenerating.style.display = 'none';
+    this.cancelGenerating.className = 'mt-button mt-button--spaced';
     this.cancelGenerating.addEventListener('click', () => {
       this.onCancel();
     });
@@ -244,10 +190,10 @@ export class CreateWorldScreen {
 
   private row(label: string, control: HTMLElement): HTMLDivElement {
     const row = document.createElement('div');
-    Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '12px' });
+    row.className = 'mt-field';
     const text = document.createElement('span');
     text.textContent = label;
-    Object.assign(text.style, { width: '110px', color: '#8b93b0' });
+    text.className = 'mt-field__label';
     row.append(text, control);
     return row;
   }
@@ -256,7 +202,7 @@ export class CreateWorldScreen {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = value;
-    Object.assign(input.style, INPUT);
+    input.className = 'mt-input mt-input--field';
     return input;
   }
 }

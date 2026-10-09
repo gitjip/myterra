@@ -30,37 +30,15 @@ export class DebugOverlay {
     public visible: boolean = DEBUG.defaultShowOverlay,
   ) {
     this.root = document.createElement('div');
-    this.root.className = 'myterra-overlay';
-    Object.assign(this.root.style, {
-      position: 'fixed',
-      top: '8px',
-      left: '8px',
-      padding: '8px 10px',
-      background: 'rgba(6, 8, 14, 0.82)',
-      border: '1px solid #2a2f45',
-      borderRadius: '4px',
-      color: '#d7dceb',
-      font: '12px/1.45 ui-monospace, Menlo, Consolas, monospace',
-      pointerEvents: 'none',
-      whiteSpace: 'pre',
-      zIndex: '1000',
-      display: this.visible ? 'block' : 'none',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.root.className = 'mt-debug';
+    this.root.style.display = this.visible ? 'block' : 'none';
 
     this.heading = document.createElement('div');
-    Object.assign(this.heading.style, {
-      fontWeight: 'bold',
-      marginBottom: '4px',
-      letterSpacing: '0.5px',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.heading.className = 'mt-debug__heading';
     this.heading.textContent = 'MyTerra';
 
     this.body = document.createElement('pre');
-    Object.assign(this.body.style, {
-      margin: '0',
-      font: 'inherit',
-      whiteSpace: 'pre',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.body.className = 'mt-debug__body';
 
     this.root.append(this.heading, this.body);
     parent.append(this.root);
@@ -96,17 +74,12 @@ export class DebugOverlay {
   }
 
   private paintHeading(context: OverlayContext): void {
-    const healthColor: Record<BudgetHealth, string> = {
-      ok: '#8b93b0',
-      warn: '#fbbf24',
-      alarm: '#f87171',
-    };
     const healthLabel: Record<BudgetHealth, string> = {
       ok: 'OK',
       warn: 'BUDGET',
       alarm: 'OVER',
     };
-    this.heading.style.color = healthColor[this.currentHealth];
+    this.heading.className = `mt-debug__heading mt-debug__heading--${this.currentHealth}`;
     this.heading.textContent = `MyTerra  ${context.fps.toFixed(1)} fps  frame ${context.frameIndex}  steps ${context.steps}  [${healthLabel[this.currentHealth]}]`;
   }
 

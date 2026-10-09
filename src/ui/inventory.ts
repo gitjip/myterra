@@ -13,44 +13,6 @@ type SlotRef =
   | { readonly kind: 'equip'; readonly slot: EquipmentSlot }
   | { readonly kind: 'chest'; readonly index: number };
 
-const PANEL: Partial<CSSStyleDeclaration> = {
-  position: 'fixed',
-  left: '50%',
-  top: '50%',
-  transform: 'translate(-50%, -50%)',
-  background: 'rgba(10, 12, 20, 0.95)',
-  border: '1px solid #2a2f45',
-  borderRadius: '6px',
-  padding: '12px 14px',
-  color: '#d7dceb',
-  font: '12px/1.4 ui-monospace, Menlo, Consolas, monospace',
-  zIndex: '1400',
-  display: 'none',
-};
-
-const SLOT: Partial<CSSStyleDeclaration> = {
-  position: 'relative',
-  width: '36px',
-  height: '36px',
-  background: 'rgba(6, 8, 14, 0.7)',
-  border: '1px solid #2a2f45',
-  borderRadius: '3px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-};
-
-const SMALL_BUTTON: Partial<CSSStyleDeclaration> = {
-  padding: '3px 8px',
-  background: '#1a1f2e',
-  color: '#d7dceb',
-  border: '1px solid #2a2f45',
-  borderRadius: '3px',
-  font: 'inherit',
-  cursor: 'pointer',
-};
-
 /**
  * Inventory + equipment + chest + crafting panel. Click-based item moving (pick
  * up / put down / swap), shift for quick move, right-click to place one or split
@@ -79,64 +41,49 @@ export class InventoryPanel {
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
-    Object.assign(this.root.style, PANEL);
+    this.root.className = 'mt-panel mt-panel--fixed';
+    this.root.style.display = 'none';
 
     const title = document.createElement('div');
     title.textContent = TEXT.inventory.title;
-    Object.assign(title.style, { fontWeight: 'bold', marginBottom: '8px', letterSpacing: '1px' });
+    title.className = 'mt-title mt-title--panel';
 
     const body = document.createElement('div');
-    Object.assign(body.style, { display: 'flex', gap: '14px' });
+    body.className = 'mt-body';
 
-    this.mainGrid = this.makeGrid(4, 10);
-    this.equipGrid = this.makeGrid(4, 1);
+    this.mainGrid = this.makeGrid(4, 10, 'mt-grid mt-grid--inv');
+    this.equipGrid = this.makeGrid(4, 1, 'mt-grid mt-grid--equip');
 
     const side = document.createElement('div');
     const sideLabel = document.createElement('div');
     sideLabel.textContent = TEXT.inventory.equipment;
-    Object.assign(sideLabel.style, { color: '#8b93b0', marginBottom: '4px' });
+    sideLabel.className = 'mt-side-label';
     side.append(sideLabel, this.equipGrid);
 
     this.craftWrap = document.createElement('div');
-    Object.assign(this.craftWrap.style, { width: '220px' });
+    this.craftWrap.className = 'mt-craft';
     const craftLabel = document.createElement('div');
     craftLabel.textContent = TEXT.crafting.title;
-    Object.assign(craftLabel.style, { color: '#8b93b0', marginBottom: '4px' });
+    craftLabel.className = 'mt-side-label';
     this.craftList = document.createElement('div');
-    Object.assign(this.craftList.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '2px',
-      maxHeight: '220px',
-      overflowY: 'auto',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.craftList.className = 'mt-craft__list';
     this.craftWrap.append(craftLabel, this.craftList);
 
     body.append(this.mainGrid, side, this.craftWrap);
 
     this.chestWrap = document.createElement('div');
-    Object.assign(this.chestWrap.style, { marginTop: '10px', display: 'none' });
+    this.chestWrap.className = 'mt-chest';
+    this.chestWrap.style.display = 'none';
     const chestLabel = document.createElement('div');
     chestLabel.textContent = TEXT.inventory.chest;
-    Object.assign(chestLabel.style, { color: '#8b93b0', marginBottom: '4px' });
-    this.chestGrid = this.makeGrid(2, 10);
+    chestLabel.className = 'mt-side-label';
+    this.chestGrid = this.makeGrid(2, 10, 'mt-grid mt-grid--chest');
     this.chestWrap.append(chestLabel, this.chestGrid);
 
     this.root.append(title, body, this.chestWrap);
 
     this.cursorEl = document.createElement('div');
-    Object.assign(this.cursorEl.style, {
-      position: 'fixed',
-      pointerEvents: 'none',
-      padding: '2px 6px',
-      background: 'rgba(6, 8, 14, 0.9)',
-      border: '1px solid #d7dceb',
-      borderRadius: '3px',
-      font: '11px ui-monospace, monospace',
-      color: '#e6e9f2',
-      zIndex: '1500',
-      display: 'none',
-    });
+    this.cursorEl.className = 'mt-cursor';
     parent.append(this.root, this.cursorEl);
 
     document.addEventListener('mousemove', (event) => {
@@ -194,14 +141,9 @@ export class InventoryPanel {
 
   // --- internals -----------------------------------------------------------
 
-  private makeGrid(rows: number, cols: number): HTMLDivElement {
+  private makeGrid(rows: number, cols: number, className: string): HTMLDivElement {
     const grid = document.createElement('div');
-    Object.assign(grid.style, {
-      display: 'grid',
-      gridTemplateColumns: `repeat(${cols}, 36px)`,
-      gridAutoRows: '36px',
-      gap: '3px',
-    } satisfies Partial<CSSStyleDeclaration>);
+    grid.className = className;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) grid.append(document.createElement('div'));
     }
@@ -214,7 +156,7 @@ export class InventoryPanel {
       children.forEach((element, order) => {
         const ref = makeRef(order);
         const key = refKey(ref);
-        Object.assign(element.style, SLOT);
+        element.className = 'mt-slot';
         this.slotEls.set(key, element);
         element.addEventListener('mousedown', (event) => {
           if (event.button !== 0) return;
@@ -406,25 +348,19 @@ export class InventoryPanel {
     if (ref.kind === 'equip' && !stack) {
       const label = document.createElement('span');
       label.textContent = equipAbbrev(ref.slot);
-      Object.assign(label.style, { color: '#3f465c', fontSize: '9px' });
+      label.className = 'mt-slot-abbrev';
       element.append(label);
       return;
     }
     if (!stack) return;
     const label = document.createElement('span');
     label.textContent = shortLabel(itemDefinition(stack.item).name);
-    Object.assign(label.style, { fontSize: '9px', textAlign: 'center', lineHeight: '1.1' });
+    label.className = 'mt-slot-name';
     element.append(label);
     if (stack.count > 1) {
       const count = document.createElement('span');
       count.textContent = String(stack.count);
-      Object.assign(count.style, {
-        position: 'absolute',
-        right: '2px',
-        bottom: '0',
-        fontSize: '9px',
-        color: '#f0d58c',
-      });
+      count.className = 'mt-slot-count';
       element.append(count);
     }
   }
@@ -434,25 +370,15 @@ export class InventoryPanel {
     this.craftList.textContent = '';
     for (const recipe of listRecipes(this.stations)) {
       const row = document.createElement('div');
-      Object.assign(row.style, {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: '6px',
-      } satisfies Partial<CSSStyleDeclaration>);
+      row.className = 'mt-craft-row';
       const label = document.createElement('span');
       label.textContent = `${itemDefinition(recipe.output).name} x${recipe.count}`;
-      Object.assign(label.style, {
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      } satisfies Partial<CSSStyleDeclaration>);
+      label.className = 'mt-craft-row__label';
       const button = document.createElement('button');
       button.textContent = TEXT.crafting.craft;
-      Object.assign(button.style, SMALL_BUTTON);
+      button.className = 'mt-button mt-button--small';
       const enabled = this.free || canCraft(recipe, this.inventory);
       button.disabled = !enabled;
-      button.style.opacity = enabled ? '1' : '0.4';
       button.addEventListener('click', () => {
         this.onCraft(recipe);
         this.signature = '';

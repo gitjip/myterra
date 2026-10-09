@@ -5,32 +5,6 @@ import type { Furnace } from '../systems/furnace';
 import type { Inventory } from '../systems/inventory';
 import { slotSignature } from './inventory';
 
-const PANEL: Partial<CSSStyleDeclaration> = {
-  position: 'fixed',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, 160px)',
-  width: '360px',
-  background: 'rgba(10, 12, 20, 0.95)',
-  border: '1px solid #2a2f45',
-  borderRadius: '6px',
-  padding: '14px 16px',
-  color: '#d7dceb',
-  font: '13px/1.5 ui-monospace, Menlo, Consolas, monospace',
-  zIndex: '1500',
-  display: 'none',
-};
-
-const BUTTON: Partial<CSSStyleDeclaration> = {
-  padding: '3px 10px',
-  background: '#1a1f2e',
-  color: '#d7dceb',
-  border: '1px solid #2a2f45',
-  borderRadius: '3px',
-  font: 'inherit',
-  cursor: 'pointer',
-};
-
 /** Minimal furnace dialog: insert ore/food, burn fuel, collect output. */
 export class FurnacePanel {
   private readonly root: HTMLDivElement;
@@ -44,35 +18,28 @@ export class FurnacePanel {
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
-    Object.assign(this.root.style, PANEL);
+    this.root.className = 'mt-panel mt-panel--fixed mt-panel--furnace';
+    this.root.style.display = 'none';
 
     const title = document.createElement('div');
     title.textContent = 'Furnace';
-    Object.assign(title.style, { fontWeight: 'bold', marginBottom: '8px', letterSpacing: '1px' });
+    title.className = 'mt-title mt-title--panel';
 
     this.status = document.createElement('div');
-    Object.assign(this.status.style, { marginBottom: '6px', color: '#8b93b0' });
+    this.status.className = 'mt-status mt-status--spaced';
 
     const track = document.createElement('div');
-    Object.assign(track.style, {
-      width: '100%',
-      height: '10px',
-      background: '#0e1220',
-      border: '1px solid #2a2f45',
-      borderRadius: '3px',
-      overflow: 'hidden',
-      marginBottom: '8px',
-    });
+    track.className = 'mt-bar mt-bar--full';
     this.progressFill = document.createElement('div');
-    Object.assign(this.progressFill.style, { width: '0%', height: '100%', background: '#d9923b' });
+    this.progressFill.className = 'mt-bar__fill';
+    this.progressFill.style.background = 'var(--mt-warn)';
     track.append(this.progressFill);
 
     this.inputs = document.createElement('div');
 
     this.collect = document.createElement('button');
     this.collect.textContent = 'Collect';
-    Object.assign(this.collect.style, BUTTON);
-    this.collect.style.marginTop = '8px';
+    this.collect.className = 'mt-button mt-button--spaced';
     this.collect.addEventListener('click', () => {
       this.onCollect();
     });
@@ -117,19 +84,14 @@ export class FurnacePanel {
       const first = r.inputs[0];
       if (!first) continue;
       const row = document.createElement('div');
-      Object.assign(row.style, {
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '2px 0',
-      });
+      row.className = 'mt-row';
       const label = document.createElement('span');
       label.textContent = `${itemDefinition(r.output).name} ← ${itemDefinition(first.item).name}`;
       const button = document.createElement('button');
       button.textContent = 'Insert';
-      Object.assign(button.style, BUTTON);
+      button.className = 'mt-button mt-button--small';
       const available = inventory.countOf(first.item) > 0;
       button.disabled = !available;
-      button.style.opacity = available ? '1' : '0.4';
       button.addEventListener('click', () => {
         this.onInsert(first.item);
       });

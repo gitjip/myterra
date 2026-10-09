@@ -1,30 +1,6 @@
 import { ItemId, itemDefinition } from '../data/items';
 import { TEXT } from './text';
 
-const OVERLAY: Partial<CSSStyleDeclaration> = {
-  position: 'fixed',
-  inset: '0',
-  display: 'none',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'rgba(4, 6, 12, 0.7)',
-  zIndex: '2400',
-  font: '13px/1.5 ui-monospace, Menlo, Consolas, monospace',
-  color: '#d7dceb',
-};
-
-const PANEL: Partial<CSSStyleDeclaration> = {
-  width: '520px',
-  maxHeight: '80vh',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '8px',
-  background: 'rgba(10, 12, 20, 0.97)',
-  border: '1px solid #2a2f45',
-  borderRadius: '6px',
-  padding: '14px 16px',
-};
-
 const GROUPS = ['All', 'Blocks', 'Tools', 'Weapons', 'Armor', 'Materials'] as const;
 type Group = (typeof GROUPS)[number];
 
@@ -50,17 +26,18 @@ export class CreativePanel {
     this.allItems = Object.values(ItemId).filter((value): value is ItemId => typeof value === 'number');
 
     this.root = document.createElement('div');
-    Object.assign(this.root.style, OVERLAY);
+    this.root.className = 'mt-overlay mt-overlay--center';
     const panel = document.createElement('div');
-    Object.assign(panel.style, PANEL);
+    panel.className = 'mt-panel mt-panel--creative';
 
     const title = document.createElement('div');
     title.textContent = TEXT.creative.title;
-    Object.assign(title.style, { fontWeight: 'bold', letterSpacing: '1px' });
+    title.className = 'mt-title';
 
     const controls = document.createElement('div');
-    Object.assign(controls.style, { display: 'flex', gap: '8px' });
+    controls.className = 'mt-controls';
     this.groupSelect = document.createElement('select');
+    this.groupSelect.className = 'mt-select';
     for (const group of GROUPS) {
       const option = document.createElement('option');
       option.value = group;
@@ -70,17 +47,11 @@ export class CreativePanel {
     this.search = document.createElement('input');
     this.search.type = 'text';
     this.search.placeholder = TEXT.creative.search;
-    Object.assign(this.search.style, { flex: '1' });
+    this.search.className = 'mt-input mt-input--fill';
     controls.append(this.groupSelect, this.search);
 
     this.grid = document.createElement('div');
-    Object.assign(this.grid.style, {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4, 1fr)',
-      gap: '4px',
-      overflowY: 'auto',
-      maxHeight: '58vh',
-    } satisfies Partial<CSSStyleDeclaration>);
+    this.grid.className = 'mt-grid mt-grid--creative';
 
     panel.append(title, controls, this.grid);
     this.root.append(panel);
@@ -121,18 +92,7 @@ export class CreativePanel {
       if (query.length > 0 && !def.name.toLowerCase().includes(query)) continue;
       const button = document.createElement('button');
       button.textContent = def.name;
-      Object.assign(button.style, {
-        padding: '6px 4px',
-        background: '#1a1f2e',
-        color: '#d7dceb',
-        border: '1px solid #2a2f45',
-        borderRadius: '3px',
-        cursor: 'pointer',
-        font: 'inherit',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      } satisfies Partial<CSSStyleDeclaration>);
+      button.className = 'mt-slot mt-slot--creative';
       button.addEventListener('click', () => {
         this.onPick(item);
       });

@@ -4,36 +4,6 @@ import type { ModeName } from '../game/mode';
 import type { Settings } from '../systems/settings';
 import { TEXT } from './text';
 
-const OVERLAY: Partial<CSSStyleDeclaration> = {
-  position: 'fixed',
-  inset: '0',
-  display: 'none',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'rgba(4, 6, 12, 0.7)',
-  zIndex: '2600',
-  font: '13px/1.5 ui-monospace, Menlo, Consolas, monospace',
-  color: '#d7dceb',
-};
-
-const PANEL: Partial<CSSStyleDeclaration> = {
-  width: '440px',
-  maxHeight: '82vh',
-  overflowY: 'auto',
-  background: 'rgba(10, 12, 20, 0.97)',
-  border: '1px solid #2a2f45',
-  borderRadius: '6px',
-  padding: '16px 18px',
-};
-
-const ROW: Partial<CSSStyleDeclaration> = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '10px',
-  padding: '3px 0',
-};
-
 interface NumberSettingKey {
   readonly key: keyof Settings;
   readonly label: string;
@@ -75,18 +45,18 @@ export class SettingsPanel {
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
-    Object.assign(this.root.style, OVERLAY);
+    this.root.className = 'mt-overlay mt-overlay--center';
     const panel = document.createElement('div');
-    Object.assign(panel.style, PANEL);
+    panel.className = 'mt-panel mt-panel--wide';
 
     const title = document.createElement('div');
     title.textContent = TEXT.settings.title;
-    Object.assign(title.style, { fontWeight: 'bold', letterSpacing: '1px', marginBottom: '10px' });
+    title.className = 'mt-title mt-title--panel';
     panel.append(title);
 
     for (const setting of NUMBER_SETTINGS) {
       const row = document.createElement('div');
-      Object.assign(row.style, ROW);
+      row.className = 'mt-row';
       const label = document.createElement('span');
       label.textContent = setting.label;
       const input = document.createElement('input');
@@ -95,7 +65,7 @@ export class SettingsPanel {
       input.max = String(setting.max);
       input.step = String(setting.step);
       input.value = String(setting.max);
-      input.style.width = '180px';
+      input.className = 'mt-range';
       input.addEventListener('input', () => {
         this.emitNumber(setting.key, Number(input.value));
       });
@@ -105,7 +75,7 @@ export class SettingsPanel {
     }
 
     const overlayRow = document.createElement('div');
-    Object.assign(overlayRow.style, ROW);
+    overlayRow.className = 'mt-row';
     const overlayLabel = document.createElement('span');
     overlayLabel.textContent = TEXT.settings.showOverlay;
     this.overlayToggle = document.createElement('input');
@@ -117,7 +87,7 @@ export class SettingsPanel {
     panel.append(overlayRow);
 
     const modeRow = document.createElement('div');
-    Object.assign(modeRow.style, ROW);
+    modeRow.className = 'mt-row';
     const modeLabel = document.createElement('span');
     modeLabel.textContent = TEXT.settings.mode;
     this.modeSelect = document.createElement('select');
@@ -138,24 +108,15 @@ export class SettingsPanel {
 
     const keysTitle = document.createElement('div');
     keysTitle.textContent = TEXT.settings.keys;
-    Object.assign(keysTitle.style, { marginTop: '10px', color: '#8b93b0' });
+    keysTitle.className = 'mt-section-title';
     panel.append(keysTitle);
     for (const action of ACTIONS) {
       const row = document.createElement('div');
-      Object.assign(row.style, ROW);
+      row.className = 'mt-row';
       const label = document.createElement('span');
       label.textContent = action;
       const button = document.createElement('button');
-      Object.assign(button.style, {
-        minWidth: '120px',
-        padding: '3px 8px',
-        background: '#1a1f2e',
-        color: '#d7dceb',
-        border: '1px solid #2a2f45',
-        borderRadius: '3px',
-        cursor: 'pointer',
-        font: 'inherit',
-      } satisfies Partial<CSSStyleDeclaration>);
+      button.className = 'mt-button mt-button--key';
       button.addEventListener('click', () => {
         this.beginRebind(action);
       });
@@ -166,16 +127,7 @@ export class SettingsPanel {
 
     const back = document.createElement('button');
     back.textContent = TEXT.settings.back;
-    Object.assign(back.style, {
-      marginTop: '12px',
-      padding: '6px 16px',
-      background: '#1a1f2e',
-      color: '#d7dceb',
-      border: '1px solid #2a2f45',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      font: 'inherit',
-    } satisfies Partial<CSSStyleDeclaration>);
+    back.className = 'mt-button mt-button--spaced';
     back.addEventListener('click', () => {
       this.onClose();
     });

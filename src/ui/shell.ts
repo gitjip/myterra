@@ -54,6 +54,11 @@ export class Shell {
     void this.initializeStore();
   }
 
+  /** The running game, or null at the menu. Used by the dev tooling. */
+  public getGame(): Game | null {
+    return this.game;
+  }
+
   public dispose(): void {
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('beforeunload', this.onBeforeUnload);
@@ -276,25 +281,11 @@ export class Shell {
   };
 
   private toast(message: string): void {
-    const existing = this.uiRoot.querySelector('.myterra-toast');
+    const existing = this.uiRoot.querySelector('.mt-toast');
     existing?.remove();
     const toast = document.createElement('div');
-    toast.className = 'myterra-toast';
+    toast.className = 'mt-toast mt-toast--error';
     toast.textContent = message;
-    Object.assign(toast.style, {
-      position: 'fixed',
-      left: '50%',
-      top: '16px',
-      transform: 'translateX(-50%)',
-      padding: '8px 14px',
-      background: 'rgba(120, 30, 30, 0.92)',
-      border: '1px solid #7a3b3b',
-      borderRadius: '4px',
-      color: '#f4d7d7',
-      font: '13px ui-monospace, Menlo, Consolas, monospace',
-      zIndex: '3000',
-      pointerEvents: 'none',
-    } satisfies Partial<CSSStyleDeclaration>);
     this.uiRoot.append(toast);
     if (this.toastTimer) window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => {

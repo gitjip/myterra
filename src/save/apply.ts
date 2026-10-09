@@ -32,6 +32,11 @@ export interface SaveStack {
   readonly count: number;
 }
 
+export interface SaveInventory {
+  readonly slots: ReadonlyArray<SaveStack | null>;
+  readonly equipment: ReadonlyArray<SaveStack | null>;
+}
+
 export interface SaveState {
   readonly world: World;
   readonly seed: number;
@@ -43,7 +48,7 @@ export interface SaveState {
   readonly createdAt: number;
   readonly playedMs: number;
   readonly player: SavePlayer;
-  readonly inventory: ReadonlyArray<SaveStack | null>;
+  readonly inventory: SaveInventory;
 }
 
 export interface LoadedState {
@@ -55,7 +60,7 @@ export interface LoadedState {
   readonly createdAt: number;
   readonly playedMs: number;
   readonly player: SavePlayer | null;
-  readonly inventory: ReadonlyArray<SaveStack | null> | null;
+  readonly inventory: SaveInventory | null;
 }
 
 const encoder = new TextEncoder();
@@ -114,7 +119,7 @@ export function applySave(world: World, bytes: Uint8Array): LoadedState {
   }
 
   let player: SavePlayer | null = null;
-  let inventory: ReadonlyArray<SaveStack | null> | null = null;
+  let inventory: SaveInventory | null = null;
 
   world.beginBulk();
   try {
@@ -133,7 +138,7 @@ export function applySave(world: World, bytes: Uint8Array): LoadedState {
           player = JSON.parse(decoder.decode(payload)) as SavePlayer;
           break;
         case SECTION.Inventory:
-          inventory = JSON.parse(decoder.decode(payload)) as Array<SaveStack | null>;
+          inventory = JSON.parse(decoder.decode(payload)) as SaveInventory;
           break;
         default:
           // Unknown sections are ignored so newer saves degrade gracefully.

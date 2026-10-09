@@ -1,10 +1,17 @@
 import { rectsOverlap } from '../core/math';
 import type { Footprint, ItemId } from '../data/items';
-import { dropForTile, itemDefinition, toolClassOf, toolTierOf } from '../data/items';
+import {
+  dropForTile,
+  itemDefinition,
+  toolClassOf,
+  toolTierOf,
+  ItemId as Items,
+} from '../data/items';
 import { isDoorTile, tileDefinition, TileId, WallId } from '../data/tiles';
 import type { ToolClass } from '../data/tiles';
 import { INTERACTION, MINING } from '../data/tuning';
 import { doorStateAt, toggleDoor } from '../entity/door';
+import { LiquidType } from '../world/world';
 import type { Inventory } from './inventory';
 import type { Body } from './physics';
 import type { World } from '../world/world';
@@ -185,6 +192,33 @@ export function applyPlaceSpec(world: World, spec: PlaceSpec, x: number, y: numb
 
 export function applyPlacement(world: World, item: ItemId, x: number, y: number): void {
   applyPlaceSpec(world, specForItem(item), x, y);
+}
+
+export interface BucketResult {
+  readonly ok: boolean;
+  readonly item: ItemId;
+}
+
+/**
+ * Fills an empty bucket from a liquid cell, or pours a filled bucket into air.
+ * Returns the held item's replacement; the caller handles the liquid wakeup.
+ */
+export function bucketUse(world: World, item: ItemId, x: number, y: number): BucketResult {
+  const cell = world.liquidAt(x, y);
+  if (item === Items.EmptyBucket) {
+    if (cell.amount <= 0) return { ok: false, item };
+    const filled = cell.type === LiquidType.Lava ? Items.LavaBucket : Items.WaterBucket;
+    world.setLiquid(x, y, LiquidType.None, 0);
+    return { ok: true, item: filled };
+  }
+  if (item === Items.WaterBucket || item === Items.LavaBucket) {
+    if (world.getTile(x, y) !== TileId.Air) return { ok: false, item };
+    if (cell.amount > 0) return { ok: false, item };
+    const type = item === Items.LavaBucket ? LiquidType.Lava : LiquidType.Water;
+    world.setLiquid(x, y, type, 100);
+    return { ok: true, item: Items.EmptyBucket };
+  }
+  return { ok: false, item };
 }
 
 /** Removes a tile (and its door partner). `drop` false suppresses the item. */

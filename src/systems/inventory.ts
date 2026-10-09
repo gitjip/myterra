@@ -10,22 +10,27 @@ export interface ItemStack {
 
 export type InventorySlot = ItemStack | null;
 
+export type EquipmentSlot = 'helmet' | 'chest' | 'legs' | 'ammo';
+export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['helmet', 'chest', 'legs', 'ammo'];
+
 export interface InventoryEvents {
   /** A slot's contents changed. */
   change: number;
   /** The selected hotbar slot changed. */
   select: number;
+  /** An equipment slot changed. */
+  equipment: EquipmentSlot;
 }
 
 /**
- * Pure item storage: 40 slots with the first 10 acting as the hotbar.
- *
- * It owns no rendering and no DOM. All mutations emit `change` so the UI can
- * follow along without polling.
+ * Pure item storage: 40 slots with the first 10 acting as the hotbar, plus four
+ * equipment slots (helmet / chest / legs / ammo). No weapon slot: weapons are
+ * held in the hotbar.
  */
 export class Inventory {
   public readonly emitter = new Emitter<InventoryEvents>();
   private readonly slots: InventorySlot[];
+  private readonly equipment: InventorySlot[] = EQUIPMENT_SLOTS.map(() => null);
   private selectedIndex = 0;
 
   public constructor(slotCount: number = INVENTORY.slots) {
@@ -49,6 +54,13 @@ export class Inventory {
 
   public getSlot(index: number): InventorySlot {
     return this.slots[index] ?? null;
+  }
+
+  /** Replaces a slot's contents outright (used by bucket fill/pour). */
+  public setSlot(index: number, stack: InventorySlot): void {
+    if (index < 0 || index >= this.slots.length) return;
+    this.slots[index] = stack ? { item: stack.item, count: stack.count } : null;
+    this.emitter.emit('change', index);
   }
 
   public select(index: number): void {
@@ -159,6 +171,59 @@ export class Inventory {
 
   public isEmpty(): boolean {
     return this.slots.every((slot) => slot === null);
+  }
+
+  // --- Equipment -----------------------------------------------------------
+
+  public getEquipment(slot: EquipmentSlot): InventorySlot {
+    return this.equipment[EQUIPMENT_SLOTS.indexOf(slot)] ?? null;
+  }
+
+  public setEquipment(slot: EquipmentSlot, stack: InventorySlot): void {
+    this.equipment[EQUIPMENT_SLOTS.indexOf(slot)] = stack
+      ? { item: stack.item, count: stack.count }
+      : null;
+    this.emitter.emit('equipment', slot);
+  }
+
+  /** Total armor damage-reduction points from helmet + chest + legs. */
+  public armorReduction(): number {
+    let total = 0;
+    for (const slot of ['helmet', 'chest', 'legs'] as const) {
+      const equipped = this.getEquipment(slot);
+      if (equipped) total += itemDefinition(equipped.item).armorReduction;
+    }
+    return total;
+  }
+
+  /** Ammo available in the ammo slot. */
+  public ammoCount(): number {
+    const ammo = this.getEquipment('ammo');
+    return ammo && itemDefinition(ammo.item).isAmmo ? ammo.count : 0;
+  }
+
+  /** Consumes up to `count` ammo. Returns how many were consumed. */
+  public consumeAmmo(count = 1): number {
+    const index = EQUIPMENT_SLOTS.indexOf('ammo');
+    const ammo = this.equipment[index];
+    if (!ammo || !itemDefinition(ammo.item).isAmmo) return 0;
+    const take = Math.min(ammo.count, count);
+    ammo.count -= take;
+    if (ammo.count <= 0) this.equipment[index] = null;
+    this.emitter.emit('equipment', 'ammo');
+    return take;
+  }
+
+  public snapshotEquipment(): InventorySlot[] {
+    return this.equipment.map((slot) => (slot ? { item: slot.item, count: slot.count } : null));
+  }
+
+  public restoreEquipment(slots: ReadonlyArray<InventorySlot>): void {
+    for (let i = 0; i < this.equipment.length; i++) {
+      const incoming = slots[i] ?? null;
+      this.equipment[i] = incoming ? { item: incoming.item, count: incoming.count } : null;
+      this.emitter.emit('equipment', EQUIPMENT_SLOTS[i] ?? 'helmet');
+    }
   }
 
   /** A detached copy of every slot, for saving. */

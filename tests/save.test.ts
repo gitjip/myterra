@@ -30,7 +30,10 @@ function state(world: World, overrides: Partial<SaveState> = {}): SaveState {
     createdAt: 123456,
     playedMs: 654321,
     player: { x: 1, y: 2, vx: 3, vy: 4, health: 70, hunger: 60, breath: 50, facing: -1 },
-    inventory: [{ item: ItemId.Dirt, count: 30 }, null, { item: ItemId.WoodAxe, count: 1 }],
+    inventory: {
+      slots: [{ item: ItemId.Dirt, count: 30 }, null, { item: ItemId.WoodAxe, count: 1 }],
+      equipment: [null, null, null, { item: ItemId.Arrow, count: 20 }],
+    },
     ...overrides,
   };
 }

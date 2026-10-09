@@ -62,6 +62,7 @@ export enum ItemId {
   Obsidian = 57,
   Anvil = 58,
   Bed = 59,
+  EmptyBucket = 60,
 }
 
 export type StationType = 'workbench' | 'anvil' | 'furnace' | 'chest' | 'bed';
@@ -232,6 +233,7 @@ export const ITEM_DEFINITIONS: Readonly<Record<ItemId, ItemDefinition>> = {
 
   [ItemId.WaterBucket]: item('Water Bucket', { stackMax: 1, isBucket: true }),
   [ItemId.LavaBucket]: item('Lava Bucket', { stackMax: 1, isBucket: true }),
+  [ItemId.EmptyBucket]: item('Bucket', { stackMax: 1, isBucket: true }),
   [ItemId.Obsidian]: item('Obsidian'),
   [ItemId.Anvil]: block('Anvil', TileId.Anvil, {
     stackMax: 99,

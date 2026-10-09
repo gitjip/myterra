@@ -108,8 +108,7 @@ export const RECIPES: readonly Recipe[] = [
     [ItemId.Wood, 1],
     [ItemId.Stone, 1],
   ]),
-  r('water-bucket', ItemId.WaterBucket, 1, 'workbench', [[ItemId.IronIngot, 3]]),
-  r('lava-bucket', ItemId.LavaBucket, 1, 'workbench', [[ItemId.IronIngot, 3]]),
+  r('bucket', ItemId.EmptyBucket, 1, 'workbench', [[ItemId.IronIngot, 3]]),
 
   r('wood-helmet', ItemId.WoodHelmet, 1, 'anvil', [[ItemId.Wood, 10]]),
   r('wood-chestplate', ItemId.WoodChestplate, 1, 'anvil', [[ItemId.Wood, 15]]),

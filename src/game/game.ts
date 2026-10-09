@@ -5,12 +5,22 @@ import { Profiler } from '../core/perf';
 import { Rng } from '../core/rng';
 import { ItemId, bonusDropsForTile, itemDefinition, stationOfTile } from '../data/items';
 import { TileId } from '../data/tiles';
-import { DEBUG, FRAME, FRAME_BUDGET_MS, INTERACTION, LIGHT, PLAYER, TILE } from '../data/tuning';
+import {
+  DEBUG,
+  FRAME,
+  FRAME_BUDGET_MS,
+  INTERACTION,
+  LIGHT,
+  PLAYER,
+  TILE,
+  COMBAT,
+} from '../data/tuning';
 import { Player } from '../entity/player';
 import { PickupManager } from '../entity/pickup';
 import type { Enemy } from '../entity/enemy';
 import type { Passive } from '../entity/passive';
 import { PassiveManager } from '../entity/passive';
+import { ProjectileManager } from '../entity/projectile';
 import { Camera } from '../render/camera';
 import { DebugOverlay } from '../render/debug';
 import { DamageNumbers, EnemyRenderer } from '../render/enemy';
@@ -23,7 +33,7 @@ import { PickupRenderer } from '../render/pickup';
 import { PlayerRenderer } from '../render/player';
 import type { TerrainRenderStats } from '../render/terrain';
 import { TerrainRenderer } from '../render/terrain';
-import { InteractionSystem, withinReach } from '../systems/interaction';
+import { InteractionSystem, bucketUse, withinReach } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
 import { craft } from '../systems/crafting';
 import { CombatSystem } from '../systems/combat';
@@ -40,7 +50,7 @@ import { SandSystem } from '../world/sand';
 import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 import { findSpawn } from '../world/gen/generator';
-import type { LoadedState, SavePlayer, SaveStack } from '../save/apply';
+import type { LoadedState, SaveInventory, SavePlayer } from '../save/apply';
 import { InputManager } from './input';
 import { CREATIVE_PALETTE, Mode } from './mode';
 import type { ModeName } from './mode';
@@ -96,6 +106,7 @@ export class Game {
   private readonly rng: Rng;
   private readonly spawnSystem: SpawnSystem;
   private readonly passives: PassiveManager;
+  private readonly projectiles = new ProjectileManager();
   private readonly furnaces = new Map<string, Furnace>();
   private craftingPanel: CraftingPanel | undefined;
   private furnacePanel: FurnacePanel | undefined;
@@ -103,6 +114,8 @@ export class Game {
   private spawnX = 0;
   private spawnY = 0;
   private activeFurnace: Furnace | null = null;
+  private chargeTimer = 0;
+  private charging = false;
   private elapsed = 0;
   private readonly resizeObserver: ResizeObserver;
   private readonly disposers: Array<() => void> = [];
@@ -255,6 +268,7 @@ export class Game {
     this.light.dayFactor = dayFactorFor(this.timeOfDay);
 
     this.profiler.measure('entities', FRAME_BUDGET_MS.entities, () => {
+      this.player.armorReduction = this.inventory.armorReduction();
       this.player.update(
         this.world,
         { moveX: input.moveX, moveY: input.moveY, jump: input.jump },
@@ -263,6 +277,19 @@ export class Game {
       this.combat.update(dt);
       for (const enemy of this.enemies) {
         enemy.update(this.world, this.player.centreX, this.player.centreY, dt);
+        if (this.mode.flags.enemiesHostile) {
+          const shot = enemy.consumeShot();
+          if (shot) {
+            this.projectiles.spawn(
+              'enemy',
+              shot.damage,
+              enemy.centreX,
+              enemy.centreY,
+              shot.vx,
+              shot.vy,
+            );
+          }
+        }
         if (
           !this.player.dead &&
           this.mode.flags.enemiesHostile &&
@@ -292,6 +319,8 @@ export class Game {
         this.light.dayFactor,
         dt,
       );
+      this.projectiles.update(this.world, dt);
+      this.resolveProjectiles();
     });
 
     if (this.player.dead && !(this.deathPanel?.open ?? false)) this.deathPanel?.show();
@@ -300,10 +329,7 @@ export class Game {
     this.profiler.measure('logic', FRAME_BUDGET_MS.logic, () => {
       if (this.mode.name === 'creative') this.updatePaletteFromWheel();
       this.aim = input.mouse.inside ? this.tileAtMouse(input.mouse.x, input.mouse.y) : null;
-      const slot = this.inventory.selectedSlot;
-      const weapon = slot ? itemDefinition(slot.item).weaponDamage : 0;
-      if (weapon > 0 && input.mouse.left && this.combat.trySwing()) this.performSwing(weapon);
-      this.updateInteraction(dt, input.mouse.left && weapon <= 0, input.mouse.right);
+      this.updateHeldAction(dt, input.mouse.left, input.mouse.right);
       this.pickups.update(this.world, this.player.centreX, this.player.centreY, dt);
       this.pickups.collect(this.player.centreX, this.player.centreY, this.inventory);
       this.particles.update(dt);
@@ -346,6 +372,12 @@ export class Game {
 
     // Right-clicking a workstation opens its dialog instead of placing.
     let placePressed = this.input.consumePress('right');
+    if (placePressed) {
+      const slot = this.inventory.selectedSlot;
+      if (slot && itemDefinition(slot.item).isBucket && this.useBucket(slot.item)) {
+        placePressed = false;
+      }
+    }
     if (placePressed) {
       const slot = this.inventory.selectedSlot;
       const food = slot ? itemDefinition(slot.item).food : null;
@@ -404,6 +436,16 @@ export class Game {
     }
   }
 
+  private renderProjectiles(): void {
+    const scale = TILE.px * this.camera.zoom;
+    const size = Math.max(1, Math.round(scale * 0.25));
+    for (const projectile of this.projectiles.all) {
+      const screen = this.camera.worldToScreen(projectile.body.x, projectile.body.y);
+      this.ctx.fillStyle = projectile.owner === 'player' ? '#efe6c8' : '#cbb8a0';
+      this.ctx.fillRect(screen.x, screen.y, size, size);
+    }
+  }
+
   private render(info: RenderInfo): void {
     this.frames++;
     const now = performance.now();
@@ -422,6 +464,7 @@ export class Game {
     this.pickupRenderer.render(this.ctx, this.camera, this.pickups);
     this.enemyRenderer.render(this.ctx, this.camera, this.enemies);
     this.passiveRenderer.render(this.ctx, this.camera, this.passives.rabbits);
+    this.renderProjectiles();
     this.playerRenderer.render(
       this.ctx,
       this.camera,
@@ -499,7 +542,7 @@ export class Game {
       );
     }
     lines.push(
-      `held ${this.heldSummary()}  enemies ${this.enemies.length}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
+      `held ${this.heldSummary()}  enemies ${this.enemies.length}  arrows ${this.projectiles.count}  drops ${this.pickups.count}  particles ${this.particles.activeCount}`,
     );
     if (this.aim) {
       const cell = this.world.liquidAt(this.aim.x, this.aim.y);
@@ -544,22 +587,22 @@ export class Game {
     this.inventory.addItem(ItemId.WoodPickaxe);
     this.inventory.addItem(ItemId.WoodAxe);
     this.inventory.addItem(ItemId.WoodShovel);
+    this.inventory.addItem(ItemId.Bow);
     this.inventory.addItem(ItemId.Torch, 20);
-    this.inventory.addItem(ItemId.Door, 5);
     this.inventory.addItem(ItemId.Workbench, 1);
     this.inventory.addItem(ItemId.Furnace, 1);
+    this.inventory.addItem(ItemId.EmptyBucket, 1);
+    this.inventory.addItem(ItemId.Anvil, 1);
+    this.inventory.addItem(ItemId.Bed, 1);
     this.inventory.addItem(ItemId.Wood, 40);
     this.inventory.addItem(ItemId.Stone, 50);
     this.inventory.addItem(ItemId.IronIngot, 10);
     this.inventory.addItem(ItemId.Coal, 20);
     this.inventory.addItem(ItemId.RawMeat, 3);
-    this.inventory.addItem(ItemId.Bow, 1);
-    this.inventory.addItem(ItemId.Arrow, 50);
-    this.inventory.addItem(ItemId.Anvil, 1);
-    this.inventory.addItem(ItemId.Bed, 1);
     this.inventory.addItem(ItemId.Silk, 16);
     this.inventory.addItem(ItemId.Rope, 16);
     this.inventory.addItem(ItemId.GoldIngot, 10);
+    this.inventory.setEquipment('ammo', { item: ItemId.Arrow, count: 50 });
     this.inventory.select(0);
   }
 
@@ -577,9 +620,8 @@ export class Game {
       this.player.facing = p.facing >= 0 ? 1 : -1;
     }
     if (saved.inventory) {
-      this.inventory.restore(
-        saved.inventory.map((slot) => (slot ? { item: slot.item, count: slot.count } : null)),
-      );
+      this.inventory.restore(saved.inventory.slots);
+      this.inventory.restoreEquipment(saved.inventory.equipment);
     }
     // Death is never persisted: a reloaded dead player respawns with full stats.
     if (this.player.dead || this.player.health <= 0) {
@@ -606,10 +648,15 @@ export class Game {
     };
   }
 
-  public captureInventory(): Array<SaveStack | null> {
-    return this.inventory
-      .snapshot()
-      .map((slot) => (slot ? { item: slot.item, count: slot.count } : null));
+  public captureInventory(): SaveInventory {
+    return {
+      slots: this.inventory
+        .snapshot()
+        .map((slot) => (slot ? { item: slot.item, count: slot.count } : null)),
+      equipment: this.inventory
+        .snapshotEquipment()
+        .map((slot) => (slot ? { item: slot.item, count: slot.count } : null)),
+    };
   }
 
   private tileAtMouse(mouseX: number, mouseY: number): { x: number; y: number } {
@@ -664,6 +711,101 @@ export class Game {
         furnace.addFuel(ItemId.Wood, this.inventory);
       }
     }
+  }
+
+  private updateHeldAction(dt: number, leftHeld: boolean, rightHeld: boolean): void {
+    const slot = this.inventory.selectedSlot;
+    const def = slot ? itemDefinition(slot.item) : null;
+
+    if (def?.isBow) {
+      if (leftHeld) {
+        this.charging = true;
+        this.chargeTimer = Math.min(COMBAT.bowCharge, this.chargeTimer + dt);
+      } else {
+        if (this.charging) this.fireBow();
+        this.charging = false;
+        this.chargeTimer = 0;
+      }
+      this.player.moveScale = this.charging ? COMBAT.bowMoveScale : 1;
+      this.updateInteraction(dt, false, rightHeld);
+      return;
+    }
+
+    this.charging = false;
+    this.chargeTimer = 0;
+    this.player.moveScale = 1;
+    const weapon = def?.weaponDamage ?? 0;
+    if (weapon > 0 && leftHeld && this.combat.trySwing()) this.performSwing(weapon);
+    this.updateInteraction(dt, leftHeld && weapon <= 0, rightHeld);
+  }
+
+  private fireBow(): void {
+    const fraction = this.chargeTimer / COMBAT.bowCharge;
+    if (fraction < COMBAT.bowMinCharge) return;
+    if (this.inventory.ammoCount() <= 0) return;
+    this.inventory.consumeAmmo(1);
+    const speed = COMBAT.arrowSpeed * fraction;
+    const dir = this.player.facing;
+    this.projectiles.spawn(
+      'player',
+      COMBAT.arrowDamage,
+      this.player.centreX,
+      this.player.centreY - 0.1,
+      dir * speed,
+      0,
+    );
+  }
+
+  private resolveProjectiles(): void {
+    for (const projectile of [...this.projectiles.all]) {
+      if (!projectile.alive) continue;
+      let hit = false;
+      const dir = Math.sign(projectile.body.vx) || 1;
+
+      if (projectile.owner === 'player') {
+        for (const enemy of this.enemies) {
+          if (!enemy.alive || !rectsOverlap(projectile.body, enemy.body)) continue;
+          const killed = enemy.hit(projectile.damage, dir);
+          this.damageNumbers.spawn(enemy.centreX, enemy.body.y, projectile.damage);
+          if (killed) this.dropEnemyLoot(enemy);
+          hit = true;
+          break;
+        }
+      } else if (
+        !this.player.dead &&
+        !this.mode.flags.invulnerable &&
+        rectsOverlap(projectile.body, this.player.body)
+      ) {
+        this.player.hurt(projectile.damage, dir * 3, -2);
+        hit = true;
+      }
+
+      if (!hit) {
+        for (const passive of this.passives.rabbits) {
+          if (!passive.alive || !rectsOverlap(projectile.body, passive.body)) continue;
+          const killed = passive.hit(projectile.damage, dir);
+          this.damageNumbers.spawn(passive.centreX, passive.body.y, projectile.damage);
+          if (killed) this.dropPassiveLoot(passive);
+          hit = true;
+          break;
+        }
+      }
+
+      if (hit) {
+        projectile.alive = false;
+        this.projectiles.remove(projectile);
+      }
+    }
+  }
+
+  private useBucket(item: ItemId): boolean {
+    const target = this.aim;
+    if (!target || !withinReach(this.player.body, target.x, target.y)) return false;
+    const result = bucketUse(this.world, item, target.x, target.y);
+    if (!result.ok) return false;
+    this.liquid.wakeNeighbourhood(target.x, target.y);
+    this.inventory.setSlot(this.inventory.selected, { item: result.item, count: 1 });
+    return true;
   }
 
   private performSwing(damage: number): void {

@@ -21,7 +21,7 @@ Continue reloads the most recent world.
 - Mine (hold): left mouse
 - Attack with a sword (hold): left mouse
 - Eat the held food: right mouse
-- Place / open a door / use a station: right mouse
+- Place / open a door / use a station / fill or pour a bucket: right mouse
 - Crafting (near a workbench): `E`
 - Select hotbar slot: `1`–`0`
 - Toggle Survival / Creative: `F6`
@@ -51,9 +51,10 @@ grassy surface in the daytime and flee when you get close; hit one for raw meat.
 ## Combat and enemies
 
 Holding a sword and pressing left mouse swings it in a short arc in front of
-you. Zombies walk toward you and jump over walls; slimes hop. Both deal contact
-damage and are knocked back when hit, then drop gel (and the odd piece of raw
-meat). Enemies spawn only in the dark within 128 tiles and vanish past 192.
+you. Hold a bow (with arrows in the ammo slot) and hold left mouse to charge,
+then release to fire. Zombies walk toward you and jump over walls; slimes hop;
+skeletons fire bone arrows; spiders cling to walls and ceilings. Contact damage
+is reduced by equipped armor. Kills drop gel, bones, silk and meat.
 
 ## Crafting and smelting
 
@@ -67,7 +68,8 @@ and drops nothing.
 
 Water and lava are finite volumes that flow down, diagonally and sideways until
 level, then sleep. Where they meet, water and lava become stone and obsidian.
-Sand falls one tile at a time and pushes water aside. The player swims and
+Sand falls one tile at a time and pushes water aside. An empty bucket fills from
+a liquid cell and pours back into air on right-click. The player swims and
 holds breath in water, and takes damage in lava. `F9` spills water at the
 cursor for testing.
 

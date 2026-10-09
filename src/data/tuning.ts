@@ -255,7 +255,16 @@ export const COMBAT = {
   bowCharge: 0.6,
   arrowSpeed: 22,
   arrowGravity: 6,
+  arrowDamage: 10,
+  /** Seconds a projectile lives before despawning. */
+  projectileLifetime: 3,
   projectileLimit: 100,
+  /** Charge below this fraction does not fire. */
+  bowMinCharge: 0.3,
+  /** Movement multiplier while charging a bow. */
+  bowMoveScale: 0.5,
+  /** Maximum armor reduction, in percent. */
+  armorReductionCap: 95,
 } as const;
 
 // ---------------------------------------------------------------------------

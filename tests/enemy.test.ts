@@ -3,6 +3,7 @@ import { EnemyKind } from '../src/data/enemies';
 import { TileId } from '../src/data/tiles';
 import { WORLD } from '../src/data/tuning';
 import { Enemy } from '../src/entity/enemy';
+import type { EnemyShot } from '../src/entity/enemy';
 import { World } from '../src/world/world';
 
 function arena(): World {
@@ -41,5 +42,30 @@ describe('enemy behaviour', () => {
       if (zombie.body.vy < 0) jumped = true;
     }
     expect(jumped).toBe(true);
+  });
+
+  it('skeleton fires a bone when the player is in range', () => {
+    const world = arena();
+    const skeleton = new Enemy(EnemyKind.Skeleton, 5, 10 - 1.8);
+    let shot: EnemyShot | null = null;
+    for (let i = 0; i < 180 && shot === null; i++) {
+      skeleton.update(world, 14, 9, 1 / 60);
+      shot = skeleton.consumeShot();
+    }
+    expect(shot).not.toBeNull();
+    expect(shot?.vx).toBeGreaterThan(0);
+    expect(shot?.damage).toBeGreaterThan(0);
+  });
+
+  it('spider clings to a wall and climbs toward the player', () => {
+    const world = arena();
+    for (let y = 4; y < 10; y++) world.setTile(8, y, TileId.Stone);
+    const spider = new Enemy(EnemyKind.Spider, 9.1, 8);
+    let climbed = false;
+    for (let i = 0; i < 120; i++) {
+      spider.update(world, 9, 0, 1 / 60);
+      if (spider.body.vy < -0.5) climbed = true;
+    }
+    expect(climbed).toBe(true);
   });
 });

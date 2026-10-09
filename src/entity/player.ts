@@ -38,6 +38,10 @@ export class Player {
   public inLava = false;
   public headInWater = false;
   public invulnTimer = 0;
+  /** Armor damage reduction, in percentage points; set by the game each step. */
+  public armorReduction = 0;
+  /** Movement multiplier (e.g. slowed while charging a bow). */
+  public moveScale = 1;
   public canFly: boolean;
 
   private jumpHeld = false;
@@ -97,7 +101,9 @@ export class Player {
   /** Enemy/contact damage with knockback. Ignored while invulnerable or dead. */
   public hurt(damage: number, knockbackX: number, knockbackY: number): boolean {
     if (this.dead || this.invulnTimer > 0) return false;
-    this.health = clamp(this.health - damage, 0, SURVIVAL.maxHealth);
+    const reduction = clamp(this.armorReduction, 0, COMBAT.armorReductionCap);
+    const applied = Math.max(1, Math.round((damage * (100 - reduction)) / 100));
+    this.health = clamp(this.health - applied, 0, SURVIVAL.maxHealth);
     this.body.vx += knockbackX;
     this.body.vy = Math.min(this.body.vy, knockbackY);
     this.invulnTimer = COMBAT.hitInvulnerability;
@@ -136,7 +142,7 @@ export class Player {
     if (this.canFly) {
       this.body.vx = approach(
         this.body.vx,
-        input.moveX * PLAYER.flySpeedHorizontal,
+        input.moveX * PLAYER.flySpeedHorizontal * this.moveScale,
         PLAYER.accelGround * dt,
       );
       this.body.vy = approach(
@@ -150,7 +156,7 @@ export class Player {
 
     if (input.moveX !== 0) {
       const waterFactor = this.inWater ? LIQUID.waterSpeedFactor : 1;
-      const target = input.moveX * PLAYER.moveSpeed * waterFactor;
+      const target = input.moveX * PLAYER.moveSpeed * waterFactor * this.moveScale;
       const accel = this.body.onGround ? PLAYER.accelGround : PLAYER.accelAir;
       this.body.vx = approach(this.body.vx, target, accel * dt);
       this.facing = input.moveX > 0 ? 1 : -1;

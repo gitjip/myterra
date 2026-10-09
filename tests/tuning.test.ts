@@ -127,9 +127,10 @@ describe('tuning invariants', () => {
     expect(Number.isInteger(RENDER.defaultZoom)).toBe(true);
     expect(RENDER.defaultZoom).toBeGreaterThanOrEqual(RENDER.minZoom);
     expect(RENDER.defaultZoom).toBeLessThanOrEqual(RENDER.maxZoom);
-    expect(RENDER.minResolutionScale).toBeLessThanOrEqual(1);
-    expect(RENDER.maxResolutionScale).toBeGreaterThanOrEqual(1);
-    expect(RENDER.defaultResolutionScale).toBe(1);
+    expect(RENDER.logicalWidth).toBeGreaterThan(0);
+    expect(RENDER.logicalHeight).toBeGreaterThan(0);
+    expect(Number.isInteger(RENDER.logicalWidth)).toBe(true);
+    expect(Number.isInteger(RENDER.logicalHeight)).toBe(true);
     expect(RENDER.minUiScale).toBeLessThanOrEqual(RENDER.defaultUiScale);
     expect(RENDER.maxUiScale).toBeGreaterThanOrEqual(RENDER.defaultUiScale);
     expect(DEBUG.profilerWindow).toBeGreaterThan(1);

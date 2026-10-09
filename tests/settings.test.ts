@@ -4,6 +4,7 @@ import {
   loadSettings,
   sanitizeSettings,
   saveSettings,
+  snapUiScale,
 } from '../src/systems/settings';
 import type { KeyValueStore } from '../src/systems/settings';
 import { craft } from '../src/systems/crafting';
@@ -32,8 +33,15 @@ describe('settings', () => {
     expect(settings.renderDistance).toBe(256);
     expect(settings.simulationDistance).toBe(32);
     expect(settings.liquidBudgetMs).toBe(0.5);
-    expect(settings.uiScale).toBe(2);
+    expect(settings.uiScale).toBe(3);
     expect(settings.showOverlay).toBe(false);
+  });
+
+  it('snaps the UI scale to the nearest discrete step', () => {
+    expect(snapUiScale(1.4)).toBe(1);
+    expect(snapUiScale(1.6)).toBe(2);
+    expect(snapUiScale(99)).toBe(3);
+    expect(snapUiScale(Number.NaN)).toBe(1);
   });
 
   it('falls back to defaults for missing or corrupt storage', () => {
@@ -46,7 +54,7 @@ describe('settings', () => {
 
   it('round-trips through storage', () => {
     const store = new MemoryStore();
-    const custom = { ...DEFAULT_SETTINGS, renderDistance: 48, uiScale: 1.5, showOverlay: true };
+    const custom = { ...DEFAULT_SETTINGS, renderDistance: 48, uiScale: 2, showOverlay: true };
     saveSettings(custom, store);
     expect(loadSettings(store)).toEqual(custom);
   });

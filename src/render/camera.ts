@@ -181,7 +181,7 @@ export class Camera {
 
   /**
    * Maps a CSS-pixel pointer position to a tile, given the canvas backing scale
-   * (`canvas.width / canvas.clientWidth`, i.e. devicePixelRatio * resolutionScale).
+   * (`canvas.width / canvas.clientWidth`, i.e. 1 / integer display factor).
    */
   public pointerToTile(
     cssX: number,

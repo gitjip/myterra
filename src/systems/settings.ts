@@ -9,7 +9,6 @@ export interface Settings {
   liquidBudgetMs: number;
   sandBudgetMs: number;
   lightBudgetMs: number;
-  resolutionScale: number;
   uiScale: number;
   showOverlay: boolean;
 }
@@ -22,7 +21,6 @@ export const DEFAULT_SETTINGS: Settings = {
   liquidBudgetMs: FRAME_BUDGET_MS.liquid,
   sandBudgetMs: FRAME_BUDGET_MS.sand,
   lightBudgetMs: FRAME_BUDGET_MS.light,
-  resolutionScale: RENDER.defaultResolutionScale,
   uiScale: RENDER.defaultUiScale,
   showOverlay: false,
 };
@@ -37,6 +35,17 @@ export function clampSetting(value: number, min: number, max: number, fallback: 
   return Math.min(max, Math.max(min, value));
 }
 
+/** Snaps a UI scale to the nearest allowed discrete step. */
+export function snapUiScale(value: number): number {
+  const steps = RENDER.uiScaleSteps;
+  if (!Number.isFinite(value)) return RENDER.defaultUiScale;
+  let best: number = steps[0];
+  for (const step of steps) {
+    if (Math.abs(step - value) < Math.abs(best - value)) best = step;
+  }
+  return best;
+}
+
 export function sanitizeSettings(raw: unknown): Settings {
   const source = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   const num = (key: string, min: number, max: number, fallback: number): number => {
@@ -49,13 +58,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     liquidBudgetMs: num('liquidBudgetMs', 0.5, 8, DEFAULT_SETTINGS.liquidBudgetMs),
     sandBudgetMs: num('sandBudgetMs', 0.5, 8, DEFAULT_SETTINGS.sandBudgetMs),
     lightBudgetMs: num('lightBudgetMs', 0.5, 8, DEFAULT_SETTINGS.lightBudgetMs),
-    resolutionScale: num(
-      'resolutionScale',
-      RENDER.minResolutionScale,
-      RENDER.maxResolutionScale,
-      1,
-    ),
-    uiScale: num('uiScale', RENDER.minUiScale, RENDER.maxUiScale, 1),
+    uiScale: snapUiScale(source['uiScale'] as number),
     showOverlay: source['showOverlay'] === true,
   };
 }

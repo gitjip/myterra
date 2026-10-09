@@ -1,6 +1,7 @@
 import { ACTIONS } from '../game/keymap';
 import type { Action, KeyMap } from '../game/keymap';
 import type { ModeName } from '../game/mode';
+import { RENDER } from '../data/tuning';
 import type { Settings } from '../systems/settings';
 import { TEXT } from './text';
 
@@ -24,8 +25,6 @@ const NUMBER_SETTINGS: NumberSettingKey[] = [
   { key: 'liquidBudgetMs', label: TEXT.settings.liquidBudget, min: 0.5, max: 8, step: 0.5 },
   { key: 'sandBudgetMs', label: TEXT.settings.sandBudget, min: 0.5, max: 8, step: 0.5 },
   { key: 'lightBudgetMs', label: TEXT.settings.lightBudget, min: 0.5, max: 8, step: 0.5 },
-  { key: 'resolutionScale', label: TEXT.settings.resolutionScale, min: 0.5, max: 1, step: 0.05 },
-  { key: 'uiScale', label: TEXT.settings.uiScale, min: 0.75, max: 2, step: 0.05 },
 ];
 
 /** Settings dialog: runtime values, mode switch and key rebinding. */
@@ -33,6 +32,7 @@ export class SettingsPanel {
   private readonly root: HTMLDivElement;
   private readonly inputs = new Map<keyof Settings, HTMLInputElement>();
   private readonly overlayToggle: HTMLInputElement;
+  private readonly uiScaleSelect: HTMLSelectElement;
   private readonly modeSelect: HTMLSelectElement;
   private readonly keyButtons = new Map<Action, HTMLButtonElement>();
   private listeningFor: Action | null = null;
@@ -45,7 +45,7 @@ export class SettingsPanel {
 
   public constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
-    this.root.className = 'mt-overlay mt-overlay--center';
+    this.root.className = 'mt-overlay mt-overlay--top';
     const panel = document.createElement('div');
     panel.className = 'mt-panel mt-panel--wide';
 
@@ -73,6 +73,24 @@ export class SettingsPanel {
       row.append(label, input);
       panel.append(row);
     }
+
+    const uiScaleRow = document.createElement('div');
+    uiScaleRow.className = 'mt-row';
+    const uiScaleLabel = document.createElement('span');
+    uiScaleLabel.textContent = TEXT.settings.uiScale;
+    this.uiScaleSelect = document.createElement('select');
+    this.uiScaleSelect.className = 'mt-select';
+    for (const step of RENDER.uiScaleSteps) {
+      const option = document.createElement('option');
+      option.value = String(step);
+      option.textContent = `${step}x`;
+      this.uiScaleSelect.append(option);
+    }
+    this.uiScaleSelect.addEventListener('change', () => {
+      this.emitNumber('uiScale', Number(this.uiScaleSelect.value));
+    });
+    uiScaleRow.append(uiScaleLabel, this.uiScaleSelect);
+    panel.append(uiScaleRow);
 
     const overlayRow = document.createElement('div');
     overlayRow.className = 'mt-row';
@@ -155,6 +173,7 @@ export class SettingsPanel {
       if (input) input.value = String(settings[setting.key]);
     }
     this.overlayToggle.checked = settings.showOverlay;
+    this.uiScaleSelect.value = String(settings.uiScale);
     this.modeSelect.value = mode;
     for (const action of ACTIONS) {
       const button = this.keyButtons.get(action);

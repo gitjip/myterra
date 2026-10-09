@@ -12,6 +12,7 @@ import {
   INTERACTION,
   LIGHT,
   PLAYER,
+  RENDER,
   TILE,
   COMBAT,
 } from '../data/tuning';
@@ -609,8 +610,7 @@ export class Game {
   }
 
   private collectExtra(lines: string[]): void {
-    const dpr = window.devicePixelRatio || 1;
-    lines.push(`canvas ${this.canvas.width}x${this.canvas.height} @ dpr ${dpr.toFixed(2)}`);
+    lines.push(`canvas ${this.canvas.width}x${this.canvas.height} logical`);
     lines.push(
       `world ${this.world.width}x${this.world.height} tiles, revision ${this.world.revision}`,
     );
@@ -804,7 +804,7 @@ export class Game {
     this.spawnSystem.despawnRadius = despawn;
     this.passives.simulateRadius = this.settings.simulationDistance;
     this.passives.despawnRadius = despawn;
-    this.uiRoot.style.zoom = String(this.settings.uiScale);
+    this.uiRoot.style.setProperty('--ui-scale', String(this.settings.uiScale));
     this.overlay.toggle(this.settings.showOverlay);
     this.settingsPanel?.sync(this.settings, this.mode.name, this.input.keymap);
     this.resize();
@@ -1079,14 +1079,18 @@ export class Game {
   }
 
   private resize(): void {
-    const dpr = window.devicePixelRatio || 1;
-    const scale = dpr * this.settings.resolutionScale;
-    const width = Math.max(1, Math.round(this.canvas.clientWidth * scale));
-    const height = Math.max(1, Math.round(this.canvas.clientHeight * scale));
+    const width = RENDER.logicalWidth;
+    const height = RENDER.logicalHeight;
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
     }
+    const factor = Math.max(
+      1,
+      Math.floor(Math.min(window.innerWidth / width, window.innerHeight / height)),
+    );
+    this.canvas.style.width = `${width * factor}px`;
+    this.canvas.style.height = `${height * factor}px`;
     this.camera.setViewport(width, height);
   }
 

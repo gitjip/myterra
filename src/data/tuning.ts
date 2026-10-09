@@ -356,12 +356,14 @@ export const RENDER = {
   minZoom: 1,
   maxZoom: 6,
   defaultZoom: 3,
-  defaultResolutionScale: 1,
-  minResolutionScale: 0.5,
-  maxResolutionScale: 1,
+  /** Fixed internal render resolution; CSS scales it by an integer factor. */
+  logicalWidth: 960,
+  logicalHeight: 540,
   defaultUiScale: 1,
-  minUiScale: 0.75,
-  maxUiScale: 2,
+  minUiScale: 1,
+  maxUiScale: 3,
+  /** Discrete UI scale steps; always integers so borders stay crisp. */
+  uiScaleSteps: [1, 2, 3] as const,
   /** Camera dead zone and look-ahead, in pixels. */
   cameraDeadZone: 8,
   cameraLookAhead: 24,

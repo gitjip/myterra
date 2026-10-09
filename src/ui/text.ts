@@ -27,7 +27,6 @@ export const TEXT = {
     liquidBudget: 'Liquid budget (ms)',
     sandBudget: 'Sand budget (ms)',
     lightBudget: 'Light budget (ms)',
-    resolutionScale: 'Resolution scale',
     uiScale: 'UI scale',
     showOverlay: 'Show overlay',
   },

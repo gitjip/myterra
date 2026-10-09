@@ -26,7 +26,7 @@ export class CreativePanel {
     this.allItems = Object.values(ItemId).filter((value): value is ItemId => typeof value === 'number');
 
     this.root = document.createElement('div');
-    this.root.className = 'mt-overlay mt-overlay--center';
+    this.root.className = 'mt-overlay mt-overlay--top';
     const panel = document.createElement('div');
     panel.className = 'mt-panel mt-panel--creative';
 

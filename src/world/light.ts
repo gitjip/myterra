@@ -72,11 +72,20 @@ export class LightSystem {
   private statNodes = 0;
   private statDirty = 0;
   private statMs = 0;
+  private relightPending = false;
+  /** Incremental full-relight phase: 0 idle, 1 columns, 2 sky, 3 sources, 4 block. */
+  private rlPhase = 0;
+  private rlColumn = 0;
+  private rlSourceCursor = 0;
 
   public constructor(private readonly world: World) {}
 
   public get stats(): LightStats {
     return { dirty: this.statDirty, nodes: this.statNodes, ms: this.statMs };
+  }
+
+  public get isRelightPending(): boolean {
+    return this.relightPending;
   }
 
   /** Queues a cell for relighting. Called from world edit events. */
@@ -85,7 +94,7 @@ export class LightSystem {
     this.dirtyColumns.add(clamp(Math.trunc(x), this.world.xMin, this.world.xMax));
   }
 
-  /** Recomputes the whole world. Used on load and by the debug command. */
+  /** Recomputes the whole world synchronously. Used by the debug command. */
   public fullRelight(): void {
     const started = performance.now();
     const { world } = this;
@@ -122,9 +131,93 @@ export class LightSystem {
     this.statMs = performance.now() - started;
   }
 
+  /**
+   * Starts an incremental full relight spread across {@link update} calls, so
+   * loading a large world does not block the main thread for a whole frame.
+   */
+  public queueFullRelight(): void {
+    this.world.skyDepth.fill(255);
+    this.world.blockLight.fill(0);
+    this.clearQueues();
+    this.rlColumn = this.world.xMin;
+    this.rlSourceCursor = 0;
+    this.rlPhase = 1;
+    this.relightPending = true;
+  }
+
+  private updateFullRelight(started: number, budgetMs: number): void {
+    const within = (): boolean => performance.now() - started < budgetMs;
+    const { xMin, xMax, width, yMax } = this.world;
+    const cells = this.world.fg.length;
+
+    if (this.rlPhase === 1) {
+      for (; this.rlColumn <= xMax && within(); this.rlColumn++) {
+        this.scanRelightColumn(this.rlColumn, xMin, width, yMax);
+      }
+      if (this.rlColumn > xMax) {
+        this.rlSourceCursor = 0;
+        this.rlPhase = 2;
+      }
+    }
+    if (this.rlPhase === 2) {
+      for (; this.rlSourceCursor < cells && within(); this.rlSourceCursor++) {
+        if (
+          this.world.skyDepth[this.rlSourceCursor] === 0 &&
+          this.hasDarkerNeighbour(this.rlSourceCursor)
+        ) {
+          this.skyPush(this.rlSourceCursor, 0);
+        }
+      }
+      if (this.rlSourceCursor >= cells) this.rlPhase = 3;
+    }
+    if (this.rlPhase === 3) {
+      this.runSkyAdd(started, budgetMs);
+      if (this.skyMin > 255) {
+        this.rlSourceCursor = 0;
+        this.rlPhase = 4;
+      }
+    }
+    if (this.rlPhase === 4) {
+      for (; this.rlSourceCursor < cells && within(); this.rlSourceCursor++) {
+        const source = this.sourceAt(this.rlSourceCursor);
+        if (source > 0) {
+          this.world.blockLight[this.rlSourceCursor] = source;
+          this.blockPush(this.rlSourceCursor, source);
+        }
+      }
+      if (this.rlSourceCursor >= cells) this.rlPhase = 5;
+    }
+    if (this.rlPhase === 5) {
+      this.runBlockAdd(started, budgetMs);
+      if (this.blockMax <= 0) {
+        this.rlPhase = 0;
+        this.relightPending = false;
+      }
+    }
+
+    this.statNodes = this.nodeCount;
+    this.statDirty = 0;
+    this.statMs = performance.now() - started;
+  }
+
+  private scanRelightColumn(x: number, xMin: number, width: number, yMax: number): void {
+    const column = x - xMin;
+    const yMin = this.world.yMin;
+    for (let y = yMin; y <= yMax; y++) {
+      const idx = (y - yMin) * width + column;
+      if (this.blocksLight(idx)) break;
+      this.world.skyDepth[idx] = 0;
+    }
+  }
+
   /** Processes all pending edits. Returns the last frame's statistics. */
-  public update(): LightStats {
+  public update(budgetMs = Number.POSITIVE_INFINITY): LightStats {
     const started = performance.now();
+    if (this.relightPending) {
+      this.nodeCount = 0;
+      this.updateFullRelight(started, budgetMs);
+      return this.stats;
+    }
     const hasWork =
       this.dirtyCells.size > 0 ||
       this.dirtyColumns.size > 0 ||
@@ -153,8 +246,8 @@ export class LightSystem {
     this.runSkyRemove();
     this.runBlockRemove();
     this.seedAdditions();
-    this.runSkyAdd();
-    this.runBlockAdd();
+    this.runSkyAdd(started, budgetMs);
+    this.runBlockAdd(started, budgetMs);
 
     this.statNodes = this.nodeCount;
     this.statMs = performance.now() - started;
@@ -340,8 +433,9 @@ export class LightSystem {
     this.skyReseed.length = 0;
   }
 
-  private runSkyAdd(): void {
+  private runSkyAdd(started = 0, budgetMs = Number.POSITIVE_INFINITY): void {
     while (this.skyMin <= 255) {
+      if (performance.now() - started >= budgetMs) return;
       const bucket = this.skyBuckets.get(this.skyMin);
       if (!bucket || bucket.length === 0) {
         this.skyMin++;
@@ -366,8 +460,9 @@ export class LightSystem {
     }
   }
 
-  private runBlockAdd(): void {
+  private runBlockAdd(started = 0, budgetMs = Number.POSITIVE_INFINITY): void {
     while (this.blockMax > 0) {
+      if (performance.now() - started >= budgetMs) return;
       const bucket = this.blockBuckets.get(this.blockMax);
       if (!bucket || bucket.length === 0) {
         this.blockMax--;

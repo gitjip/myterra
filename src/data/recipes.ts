@@ -94,6 +94,7 @@ export const RECIPES: readonly Recipe[] = [
     [ItemId.Torch, 3],
   ]),
   r('chest', ItemId.Chest, 1, 'workbench', [[ItemId.Wood, 8]]),
+  r('door', ItemId.Door, 1, 'workbench', [[ItemId.Wood, 6]]),
   r('anvil', ItemId.Anvil, 1, 'workbench', [[ItemId.IronIngot, 10]]),
   r('bed', ItemId.Bed, 1, 'workbench', [
     [ItemId.Wood, 15],

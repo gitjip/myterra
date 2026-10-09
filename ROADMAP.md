@@ -6,7 +6,7 @@
 > - **第二部分 · 开发计划**：真正施工用的施工单。里程碑、验收标准、任务分解。
 >
 > 状态：`v0.1 设计冻结` ｜ 工具链：Vite + TypeScript (strict) ｜ 更新：2026-10-07
-> 下一步：M12 内容扩展（剩余批次 A–D）
+> 下一步：M13 UI 完成度、设置与完整创造模式
 > 计划调整（2026-10-07）：创造模式拆分——「M4 创造沙盒（开发工具）」前置，完整创造面板/无限物品/跳过合成并入 M13；UI 与设置后移到内容扩展之后；里程碑整体重排（详见第 24、25、29、31 节）。
 > 计划调整（2026-10-08）：M9 生存循环过大，拆为 M9 合成与工具 / M10 战斗与敌人 / M11 生存闭环与被动生物；原 M10/M11/M12 → M12/M13/M14。
 > 计划调整（2026-10-09）：M12 剩余内容按 批次 A 数据 / B 逻辑 / C 基础 UI / D 打磨 推进；功能方块维持 2×1、装备 4 槽（删除武器槽，武器看快捷栏手持）、近战保持接触伤害（详见第 19 节勘误 #12 与 M12）。
@@ -583,6 +583,7 @@ lint        eslint src tests tools
 test        vitest run            单测
 test:w      vitest                监听
 bench       vite-node tools/bench.ts   无头模拟基准
+verify      vite-node tools/verifyContent.ts  内容可达性检查（缺失清单必须为空）
 ```
 
 - ESLint：推荐配置 + `@typescript-eslint/strict-type-checked` + `noUncheckedIndexedAccess` 相关规则。
@@ -693,6 +694,7 @@ myterra/
 │  ├─ crafting.test.ts
 │  └─ worldgen.test.ts
 └─ tools/bench.ts
+└─ tools/verifyContent.ts
 ```
 
 模块边界规则（lint 层面不强制，但 review 必查）：
@@ -1074,7 +1076,7 @@ export const SAVE_VERSION = 1;
 
 **目标**：把第 25 节投放表里剩下的内容补齐，并完成加载/性能打磨。
 
-**状态**：方块 + 群系（`genVersion → 3`）、**批次 A 数据**、**批次 B 逻辑** 与 **批次 C 基础 UI**（背包/装备/箱子/床）已完成。剩余批次 D（打磨）按顺序推进，结束过第 30 节 DoD。
+**状态**：**已完成**（批次 A 数据 / B 逻辑 / C 基础 UI / D 打磨）。群系与全部投放内容、弓箭/护甲/新生物/液体桶、背包/装备/箱子/床 UI、`fullRelight` 分帧、`tools/verifyContent.ts` 均已落地。
 
 **批次 A · 数据补齐**
 1. 方块：铁砧、床。功能方块维持 **2×1 footprint**（工作台/熔炉/箱子/铁砧/床），门维持 1×2 —— 不改为 1×1，保持第 10 节规格。
@@ -1322,6 +1324,6 @@ Medium 20 敌人 + 100 弹幕 ...
 | M9 合成与工具 | ✅ 已完成 | `feat(m9): add crafting, tools and furnace` | 2026-10-08 |
 | M10 战斗与敌人 | ✅ 已完成 | `feat(m10): add melee combat, enemies and spawning` | 2026-10-08 |
 | M11 生存闭环与被动生物 | ✅ 已完成 | `feat(m11): add death/respawn, food and passive rabbits` | 2026-10-08 |
-| M12 内容扩展 | 🚧 进行中 | 群系/方块 + 批次 A/B/C 已完成；剩余批次 D | — |
+| M12 内容扩展 | ✅ 已完成 | 批次 A–D（内容/UI/分帧光照/校验），见提交历史 | 2026-10-09 |
 | M13 UI/设置/完整创造 | ⬜ 未开始 | — | — |
 | M14 发布 | ⬜ 未开始 | — | — |

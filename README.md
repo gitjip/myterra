@@ -93,3 +93,13 @@ npm run build
 ```
 
 The build is static and uses no runtime network requests or external assets.
+
+## Known limitations
+
+- Placeholder pixel art and no audio; English only.
+- No smooth or coloured lighting.
+- Equipment has no weapon slot (weapons are held) and no durability or visuals.
+- The crafting/furnace panels are basic; full interaction lands in M13.
+- Saving rejects worlds whose generator version differs (genVersion).
+- Procedural pools sit still until disturbed; light is recomputed on load
+  (spread across frames).

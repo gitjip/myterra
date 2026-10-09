@@ -105,4 +105,39 @@ describe('light', () => {
     // Deep rock with no lit neighbour stays dark.
     expect(displayBrightness(world, 10, 3, 1)).toBe(0);
   });
+
+  it('spreads an incremental full relight across calls and matches the sync one', () => {
+    const { world: source } = sealedWorld();
+    source.setTile(15, 5, TileId.Torch);
+    const sync = new LightSystem(source);
+    sync.fullRelight();
+
+    // Rebuild the same tiles on a second world and use the incremental relight.
+    const target = new World({ reachWidth: WORLD.minReachWidth });
+    for (let x = 0; x <= 30; x++) {
+      for (let y = 0; y <= 10; y++) target.setTile(x, y, TileId.Stone);
+    }
+    for (let x = 1; x <= 29; x++) {
+      for (let y = 5; y <= 9; y++) target.setTile(x, y, TileId.Air);
+    }
+    target.setTile(15, 5, TileId.Torch);
+
+    const incremental = new LightSystem(target);
+    incremental.queueFullRelight();
+    let guard = 0;
+    while (incremental.isRelightPending && guard < 100_000) {
+      incremental.update(0.5);
+      guard++;
+    }
+    expect(incremental.isRelightPending).toBe(false);
+    expect(guard).toBeGreaterThan(1); // it really was spread across calls
+    for (let i = 0; i < source.skyDepth.length; i++) {
+      if (source.skyDepth[i] !== target.skyDepth[i]) {
+        throw new Error(`skyDepth mismatch at ${i}`);
+      }
+      if (source.blockLight[i] !== target.blockLight[i]) {
+        throw new Error(`blockLight mismatch at ${i}`);
+      }
+    }
+  });
 });

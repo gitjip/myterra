@@ -196,7 +196,7 @@ export class Game {
       }),
     );
     this.light.dayFactor = dayFactorFor(this.timeOfDay);
-    this.light.fullRelight();
+    this.light.queueFullRelight();
 
     this.liquid = new LiquidSystem(this.world);
     this.sand = new SandSystem(this.world);
@@ -344,7 +344,7 @@ export class Game {
     });
 
     this.profiler.measure('light', FRAME_BUDGET_MS.light, () => {
-      this.light.update();
+      this.light.update(FRAME_BUDGET_MS.light);
     });
 
     this.profiler.measure('liquid', FRAME_BUDGET_MS.liquid, () => {
@@ -551,7 +551,7 @@ export class Game {
     const light = this.light.stats;
     lines.push(
       `day ${this.timeOfDay.toFixed(3)} x${this.dayCount} factor ${this.light.dayFactor.toFixed(3)}  ` +
-        `light dirty ${light.dirty} nodes ${light.nodes} ${light.ms.toFixed(2)} ms`,
+        `light dirty ${light.dirty} nodes ${light.nodes} ${light.ms.toFixed(2)} ms${this.light.isRelightPending ? ' relighting' : ''}`,
     );
     lines.push(`liquid active ${this.liquid.activeCells}  sand active ${this.sand.activeCells}`);
     const flags = this.mode.flags;

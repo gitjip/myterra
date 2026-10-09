@@ -35,6 +35,8 @@ import type { TerrainRenderStats } from '../render/terrain';
 import { TerrainRenderer } from '../render/terrain';
 import { InteractionSystem, bucketUse, withinReach } from '../systems/interaction';
 import { Inventory } from '../systems/inventory';
+import type { InventorySlot } from '../systems/inventory';
+import { ContainerStore } from '../systems/containers';
 import { craft } from '../systems/crafting';
 import { CombatSystem } from '../systems/combat';
 import { Furnace } from '../systems/furnace';
@@ -43,6 +45,7 @@ import { CraftingPanel } from '../ui/crafting';
 import { DeathPanel } from '../ui/death';
 import { FurnacePanel } from '../ui/furnace';
 import { Hud } from '../ui/hud';
+import { InventoryPanel } from '../ui/inventory';
 import { advanceDay, cssColor, dayFactorFor, skyColorFor } from '../world/dayCycle';
 import { LightSystem } from '../world/light';
 import { LiquidSystem } from '../world/liquid';
@@ -50,7 +53,7 @@ import { SandSystem } from '../world/sand';
 import { LiquidType } from '../world/world';
 import type { World } from '../world/world';
 import { findSpawn } from '../world/gen/generator';
-import type { LoadedState, SaveInventory, SavePlayer } from '../save/apply';
+import type { LoadedState, SaveChest, SaveInventory, SavePlayer } from '../save/apply';
 import { InputManager } from './input';
 import { CREATIVE_PALETTE, Mode } from './mode';
 import type { ModeName } from './mode';
@@ -108,9 +111,13 @@ export class Game {
   private readonly passives: PassiveManager;
   private readonly projectiles = new ProjectileManager();
   private readonly furnaces = new Map<string, Furnace>();
+  private readonly containers = new ContainerStore();
   private craftingPanel: CraftingPanel | undefined;
   private furnacePanel: FurnacePanel | undefined;
+  private inventoryPanel: InventoryPanel | undefined;
   private deathPanel: DeathPanel | undefined;
+  private uiState: 'none' | 'inventory' | 'workbench' | 'anvil' | 'furnace' | 'chest' = 'none';
+  private activeChest: InventorySlot[] | null = null;
   private spawnX = 0;
   private spawnY = 0;
   private activeFurnace: Furnace | null = null;
@@ -156,6 +163,8 @@ export class Game {
     this.hud = new Hud(uiRoot);
     this.craftingPanel = new CraftingPanel(uiRoot);
     this.furnacePanel = new FurnacePanel(uiRoot);
+    this.inventoryPanel = new InventoryPanel(uiRoot);
+    this.inventoryPanel.bind(this.inventory, null);
     this.craftingPanel.onCraft = (recipe) => {
       craft(recipe, this.inventory);
     };
@@ -240,16 +249,13 @@ export class Game {
     this.terrain.dispose();
     this.craftingPanel?.dispose();
     this.furnacePanel?.dispose();
+    this.inventoryPanel?.dispose();
     this.deathPanel?.dispose();
   }
 
   /** True while a dialog is open, so Escape closes it before leaving the game. */
   public isUiOpen(): boolean {
-    return (
-      (this.craftingPanel?.open ?? false) ||
-      (this.furnacePanel?.open ?? false) ||
-      (this.deathPanel?.open ?? false)
-    );
+    return this.uiState !== 'none' || (this.deathPanel?.open ?? false);
   }
 
   // -------------------------------------------------------------------------
@@ -433,6 +439,23 @@ export class Game {
           -2,
         );
       }
+      if (breakEvent.tile === TileId.Chest) this.spillChest(breakEvent.x, breakEvent.y);
+    }
+  }
+
+  private spillChest(x: number, y: number): void {
+    const contents = this.containers.removeNear(x, y);
+    if (!contents) return;
+    for (const stack of contents) {
+      if (!stack) continue;
+      this.pickups.spawn(
+        stack.item,
+        stack.count,
+        x + 0.35,
+        y + 0.2,
+        this.rng.nextRange(-1.5, 1.5),
+        -2,
+      );
     }
   }
 
@@ -489,12 +512,13 @@ export class Game {
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
     this.hud.update(this.player, this.inventory);
+    this.inventoryPanel?.update();
     this.craftingPanel?.update(this.inventory, {
       workbench: this.hasStation(TileId.Workbench),
       anvil: this.hasStation(TileId.Anvil),
     });
-    if (this.furnacePanel?.open && this.activeFurnace) {
-      this.furnacePanel.update(this.activeFurnace, this.inventory);
+    if (this.uiState === 'furnace' && this.activeFurnace) {
+      this.furnacePanel?.update(this.activeFurnace, this.inventory);
     }
 
     this.overlay.render(this.profiler, {
@@ -588,6 +612,7 @@ export class Game {
     this.inventory.addItem(ItemId.WoodAxe);
     this.inventory.addItem(ItemId.WoodShovel);
     this.inventory.addItem(ItemId.Bow);
+    this.inventory.addItem(ItemId.Chest, 1);
     this.inventory.addItem(ItemId.Torch, 20);
     this.inventory.addItem(ItemId.Workbench, 1);
     this.inventory.addItem(ItemId.Furnace, 1);
@@ -623,6 +648,7 @@ export class Game {
       this.inventory.restore(saved.inventory.slots);
       this.inventory.restoreEquipment(saved.inventory.equipment);
     }
+    if (saved.chests) this.containers.restore(saved.chests);
     // Death is never persisted: a reloaded dead player respawns with full stats.
     if (this.player.dead || this.player.health <= 0) {
       this.player.respawn(this.spawnX - PLAYER.width / 2, this.spawnY - PLAYER.height);
@@ -659,6 +685,14 @@ export class Game {
     };
   }
 
+  public captureChests(): SaveChest[] {
+    return this.containers.entries().map((chest) => ({
+      x: chest.x,
+      y: chest.y,
+      slots: chest.slots.map((slot) => (slot ? { item: slot.item, count: slot.count } : null)),
+    }));
+  }
+
   private tileAtMouse(mouseX: number, mouseY: number): { x: number; y: number } {
     const dpr = window.devicePixelRatio || 1;
     const scale = TILE.px * this.camera.zoom;
@@ -667,17 +701,24 @@ export class Game {
     return { x: Math.floor(worldX), y: Math.floor(worldY) };
   }
 
-  private toggleCrafting(): void {
-    this.furnacePanel?.set(false);
-    this.activeFurnace = null;
-    this.craftingPanel?.toggle();
+  private toggleInventory(): void {
+    this.setUi(this.uiState === 'none' ? 'inventory' : 'none');
+  }
+
+  private setUi(state: typeof this.uiState): void {
+    this.uiState = state;
+    if (state !== 'chest') this.activeChest = null;
+    this.inventoryPanel?.bind(this.inventory, state === 'chest' ? this.activeChest : null);
+    this.inventoryPanel?.setOpen(state !== 'none');
+    this.craftingPanel?.set(state === 'inventory' || state === 'workbench' || state === 'anvil');
+    this.furnacePanel?.set(state === 'furnace');
+    if (state !== 'furnace') this.activeFurnace = null;
+    this.hud.setHotbarVisible(state === 'none');
   }
 
   private openStation(station: string, x: number, y: number): boolean {
     if (station === 'workbench' || station === 'anvil') {
-      this.furnacePanel?.set(false);
-      this.activeFurnace = null;
-      this.craftingPanel?.set(true);
+      this.setUi(station);
       return true;
     }
     if (station === 'furnace') {
@@ -688,12 +729,22 @@ export class Game {
         this.furnaces.set(key, furnace);
       }
       this.activeFurnace = furnace;
-      this.craftingPanel?.set(false);
-      this.furnacePanel?.set(true);
+      this.setUi('furnace');
       return true;
     }
-    // Chest and bed panels arrive in a later M12 batch; consume the click.
-    return station === 'chest' || station === 'bed';
+    if (station === 'chest') {
+      const originX = this.world.getTile(x - 1, y) === TileId.Chest ? x - 1 : x;
+      this.activeChest = this.containers.ensure(originX, y);
+      this.setUi('chest');
+      return true;
+    }
+    if (station === 'bed') {
+      const originX = this.world.getTile(x - 1, y) === TileId.Bed ? x - 1 : x;
+      this.spawnX = originX + 1;
+      this.spawnY = y;
+      return true;
+    }
+    return false;
   }
 
   private furnaceKey(x: number, y: number): string {
@@ -910,17 +961,15 @@ export class Game {
         return;
       }
       if (event.code === 'Escape') {
-        if (this.craftingPanel?.open || this.furnacePanel?.open) {
+        if (this.uiState !== 'none') {
           event.preventDefault();
-          this.craftingPanel?.set(false);
-          this.furnacePanel?.set(false);
-          this.activeFurnace = null;
+          this.setUi('none');
         }
         return;
       }
       if (event.code === 'KeyE') {
         event.preventDefault();
-        this.toggleCrafting();
+        this.toggleInventory();
         return;
       }
       if (event.code === DEBUG.starveKey) {

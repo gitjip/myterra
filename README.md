@@ -22,7 +22,7 @@ Continue reloads the most recent world.
 - Attack with a sword (hold): left mouse
 - Eat the held food: right mouse
 - Place / open a door / use a station / fill or pour a bucket: right mouse
-- Crafting (near a workbench): `E`
+- Crafting / inventory: `E` (Esc closes)
 - Select hotbar slot: `1`–`0`
 - Toggle Survival / Creative: `F6`
 - Creative palette: `1`–`9` or mouse wheel
@@ -63,6 +63,15 @@ it in a furnace into ingots, and craft stone and iron tools and swords. Recipes
 are shape-independent and filtered by the station in reach. Tools have three
 tiers whose mining speed increases; using the wrong tool class still costs time
 and drops nothing.
+
+## Inventory, equipment and stations
+
+`E` opens the inventory (the HUD hotbar hides while it is open). Click to pick
+up and place stacks, right-click to split or place one, Shift-click to quick
+move. Equipment has four slots: helmet, chest, legs and ammo (there is no
+weapon slot; weapons are held in the hotbar). Right-click a workbench, anvil or
+furnace to use it; right-click a chest to open its 20 slots (persisted with the
+world); right-click a bed to set your respawn point.
 
 ## Liquids and sand
 

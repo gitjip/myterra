@@ -119,6 +119,7 @@ export class Shell {
         playedMs: Date.now() - meta.createdAt,
         player: game.capturePlayer(),
         inventory: game.captureInventory(),
+        chests: game.captureChests(),
       });
       this.meta = await this.store.saveWorld(meta, bytes);
     } catch (error) {

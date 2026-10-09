@@ -24,6 +24,7 @@ export class Hud {
   private readonly slots: HTMLDivElement[] = [];
   private readonly slotLabels: HTMLSpanElement[] = [];
   private readonly slotCounts: HTMLSpanElement[] = [];
+  private hotbar: HTMLDivElement | undefined;
   private readonly itemName: HTMLDivElement;
   private itemNameText = '';
   private itemNameExpiresAt = 0;
@@ -118,7 +119,13 @@ export class Hud {
     }
 
     this.root.append(bars, this.itemName, hotbar);
+    this.hotbar = hotbar;
     parent.append(this.root);
+  }
+
+  /** Hides the hotbar while a full inventory panel is open. */
+  public setHotbarVisible(visible: boolean): void {
+    if (this.hotbar) this.hotbar.style.display = visible ? 'flex' : 'none';
   }
 
   /** Shows the held item name, then fades it out. */

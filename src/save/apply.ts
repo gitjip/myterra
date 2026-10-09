@@ -37,6 +37,12 @@ export interface SaveInventory {
   readonly equipment: ReadonlyArray<SaveStack | null>;
 }
 
+export interface SaveChest {
+  readonly x: number;
+  readonly y: number;
+  readonly slots: ReadonlyArray<SaveStack | null>;
+}
+
 export interface SaveState {
   readonly world: World;
   readonly seed: number;
@@ -49,6 +55,7 @@ export interface SaveState {
   readonly playedMs: number;
   readonly player: SavePlayer;
   readonly inventory: SaveInventory;
+  readonly chests: ReadonlyArray<SaveChest>;
 }
 
 export interface LoadedState {
@@ -61,6 +68,7 @@ export interface LoadedState {
   readonly playedMs: number;
   readonly player: SavePlayer | null;
   readonly inventory: SaveInventory | null;
+  readonly chests: ReadonlyArray<SaveChest> | null;
 }
 
 const encoder = new TextEncoder();
@@ -94,6 +102,7 @@ export function encodeSave(state: SaveState): Uint8Array {
   writeSection(writer, SECTION.LiquidDiff, encodeLiquidDiff(state.world));
   writeSection(writer, SECTION.Player, jsonBytes(state.player));
   writeSection(writer, SECTION.Inventory, jsonBytes(state.inventory));
+  writeSection(writer, SECTION.Chests, jsonBytes(state.chests));
   writeSection(writer, SECTION.Stats, jsonBytes({ playedMs: state.playedMs, mode: state.mode }));
   return writer.toBytes();
 }
@@ -120,6 +129,7 @@ export function applySave(world: World, bytes: Uint8Array): LoadedState {
 
   let player: SavePlayer | null = null;
   let inventory: SaveInventory | null = null;
+  let chests: ReadonlyArray<SaveChest> | null = null;
 
   world.beginBulk();
   try {
@@ -140,6 +150,9 @@ export function applySave(world: World, bytes: Uint8Array): LoadedState {
         case SECTION.Inventory:
           inventory = JSON.parse(decoder.decode(payload)) as SaveInventory;
           break;
+        case SECTION.Chests:
+          chests = JSON.parse(decoder.decode(payload)) as SaveChest[];
+          break;
         default:
           // Unknown sections are ignored so newer saves degrade gracefully.
           break;
@@ -159,5 +172,6 @@ export function applySave(world: World, bytes: Uint8Array): LoadedState {
     playedMs: header.playedMs,
     player,
     inventory,
+    chests,
   };
 }

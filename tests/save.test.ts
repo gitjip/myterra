@@ -34,6 +34,13 @@ function state(world: World, overrides: Partial<SaveState> = {}): SaveState {
       slots: [{ item: ItemId.Dirt, count: 30 }, null, { item: ItemId.WoodAxe, count: 1 }],
       equipment: [null, null, null, { item: ItemId.Arrow, count: 20 }],
     },
+    chests: [
+      {
+        x: 4,
+        y: 9,
+        slots: [{ item: ItemId.Stone, count: 15 }, null],
+      },
+    ],
     ...overrides,
   };
 }
@@ -63,6 +70,7 @@ describe('save round-trip', () => {
     expect(loaded.dayCount).toBe(2);
     expect(loaded.player).toEqual(state(source).player);
     expect(loaded.inventory).toEqual(state(source).inventory);
+    expect(loaded.chests).toEqual(state(source).chests);
     expect(readSaveHeader(bytes).seed).toBe(7);
   });
 

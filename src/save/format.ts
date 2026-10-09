@@ -11,6 +11,7 @@ export const SECTION = {
   LiquidDiff: 0x02,
   Player: 0x10,
   Inventory: 0x11,
+  Chests: 0x12,
   Stats: 0x13,
 } as const;
 
